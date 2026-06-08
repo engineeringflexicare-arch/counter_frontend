@@ -37,22 +37,16 @@ interface ApiHourlyItem {
   output: number;
 }
 
-const generateShiftHours = (start: string, end: string): string[] => {
+// 1. Shift ආරම්භක වේලාව අනුව පැය 12ක් ගණනය කිරීම
+const generateShiftHours = (startTime: string, count: number): string[] => {
   const hours: string[] = [];
+  const startH = parseInt(startTime.split(":")[0]);
 
-  const [startH] = start.split(":").map(Number);
-  const [endH] = end.split(":").map(Number);
-
-  let current = startH;
-
-  while (current !== endH) {
-    const next = (current + 1) % 24;
-
-    hours.push(`${String(current).padStart(2, "0")}:00-${String(next).padStart(2, "0")}:00`);
-
-    current = next;
+  for (let i = 0; i < count; i++) {
+    const currentH = (startH + i) % 24;
+    const nextH = (currentH + 1) % 24;
+    hours.push(`${String(currentH).padStart(2, "0")}:00-${String(nextH).padStart(2, "0")}:00`);
   }
-
   return hours;
 };
 
@@ -66,36 +60,26 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId }: Pr
     const fetchAllData = async () => {
       try {
         const linesRes = await axios.get("http://localhost:3000/api/esp32/lines");
-
         const linesData = linesRes.data.data || linesRes.data;
 
-        if (!linesData || typeof linesData !== "object") {
-          if (isMounted) setRows([]);
-          return;
-        }
+        if (!linesData || typeof linesData !== "object") return;
 
         const filteredData = lineId && linesData[lineId] ? { [lineId]: linesData[lineId] } : linesData;
 
         const rowPromises = Object.entries(filteredData).map(async ([lineKey, lineValue]) => {
-          if (!lineValue) return null;
-
           const line = lineValue as ApiLineData;
-
           if (!line.machineId) return null;
 
-          const shiftHours = generateShiftHours(line.shiftStartTime || "08:00", line.shiftEndTime || "20:00");
+          const startTime = line.shiftStartTime || "08:00";
+          const shiftHours = generateShiftHours(startTime, maxHours);
 
           const hourlyMap: Record<string, number> = {};
           let totalDayOutput = 0;
 
           try {
-            const url = `http://localhost:3000/api/esp32/total-output/${line.machineId}`;
-
-            const res = await axios.get(url);
-
+            const res = await axios.get(`http://localhost:3000/api/esp32/total-output/${line.machineId}`);
             if (res.data?.success && Array.isArray(res.data?.hourlyData)) {
               totalDayOutput = res.data.totalOutput || 0;
-
               res.data.hourlyData.forEach((item: ApiHourlyItem) => {
                 hourlyMap[item.hour] = item.output;
               });
@@ -114,24 +98,19 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId }: Pr
             totalOutput: totalDayOutput,
             shift: line.shift || "-",
             shiftHours,
-            shiftStartTime: line.shiftStartTime || "08:00",
+            shiftStartTime: startTime,
           } as TableRow;
         });
 
         const resolvedRows = (await Promise.all(rowPromises)).filter((row): row is TableRow => row !== null);
-
-        if (isMounted) {
-          setRows(resolvedRows);
-        }
+        if (isMounted) setRows(resolvedRows);
       } catch (error) {
         console.error("Fetch Error:", error);
       }
     };
 
     fetchAllData();
-
     const interval = setInterval(fetchAllData, 60000);
-
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -144,48 +123,33 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId }: Pr
         <thead>
           <tr className="bg-[#dfe4d3] text-gray-700">
             <th className="border p-2">Assembly Line</th>
-
             <th className="border p-2">Product Code</th>
-
             <th className="border p-2">Total Output</th>
-
             <th className="border p-2">Progress (%)</th>
-
-            <th className="border p-2">Shift Start Time</th>
-
+            <th className="border p-2">Start Time</th>
+            {/* Header එකෙහි පැය අනුපිළිවෙල පෙන්වීම */}
             {Array.from({ length: maxHours }).map((_, i) => (
-              <th key={i} className="border p-2">
-                Hour {i + 1}
+              <th key={i} className="border p-2 text-xs">
+                {rows[0]?.shiftHours[i]?.split("-")[0] || `H${i + 1}`}
               </th>
             ))}
           </tr>
         </thead>
-
         <tbody>
           {rows.map((row, index) => {
             const percentage = row.dailyTarget > 0 ? ((row.totalOutput / row.dailyTarget) * 100).toFixed(1) : "0.0";
-
             return (
               <tr key={index} className="hover:bg-gray-50 text-gray-800">
                 <td className="border p-2 font-semibold">{row.assemblyLine}</td>
-
                 <td className="border p-2">{row.productCode}</td>
-
                 <td className="border p-2 font-bold text-blue-700">{row.totalOutput}</td>
-
                 <td className="border p-2 font-bold text-purple-700">{percentage}%</td>
-
                 <td className="border p-2 font-bold text-green-600">{row.shiftStartTime}</td>
-
-                {Array.from({ length: maxHours }).map((_, i) => {
-                  const hour = row.shiftHours[i];
-
-                  return (
-                    <td key={i} className={`border p-2 ${hour ? "bg-white" : "bg-gray-100"}`}>
-                      {hour ? <div className={`font-semibold ${(row.hourlyData[hour] || 0) >= row.hourlyTarget ? "text-green-600" : "text-red-600"}`}>{row.hourlyData[hour] || 0}</div> : "-"}
-                    </td>
-                  );
-                })}
+                {row.shiftHours.map((hour, i) => (
+                  <td key={i} className="border p-2">
+                    <div className={`font-semibold ${(row.hourlyData[hour] || 0) >= row.hourlyTarget ? "text-green-600" : "text-red-600"}`}>{row.hourlyData[hour] || 0}</div>
+                  </td>
+                ))}
               </tr>
             );
           })}

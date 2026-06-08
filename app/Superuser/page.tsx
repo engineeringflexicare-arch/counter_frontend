@@ -80,13 +80,13 @@ export default function SuperuserDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
+    <div className="min-h-screen bg-neutral-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-center gap-4 mb-8">
           <Image src="/logo.png" alt="Flexicare Lanka" width={90} height={90} priority />
 
-          <h1 className="text-4xl font-extrabold text-gray-900">Flexicare Lanka Production Dashboard</h1>
+          <h1 className="text-4xl font-sans font-extrabold text-gray-900">flexicare Lanka Production Dashboard</h1>
         </div>
 
         {/* Sub Header */}

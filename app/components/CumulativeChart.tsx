@@ -28,10 +28,11 @@ interface CustomTooltipProps {
 const CustomTooltip = ({ active, payload, label, daily }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const value = Number(payload[0].value || 0);
+
     const percentage = daily > 0 ? ((value / daily) * 100).toFixed(1) : "0";
 
     return (
-      <div className="bg-white p-3 rounded-lg shadow-lg border border-slate-200">
+      <div className="bg-white p-3 rounded-xl shadow-lg border border-slate-200">
         <p className="text-slate-500 text-xs font-bold mb-1">{label}</p>
 
         <p className="text-violet-600 font-black text-sm">Cumulative: {value}</p>
@@ -45,13 +46,20 @@ const CustomTooltip = ({ active, payload, label, daily }: CustomTooltipProps) =>
 };
 
 export default function CumulativeChart({ machineId, cumulativeData, daily }: CumulativeChartProps) {
+  const currentOutput = cumulativeData.length > 0 ? cumulativeData[cumulativeData.length - 1].cumulative : 0;
+
+  const completionPercentage = daily > 0 ? ((currentOutput / daily) * 100).toFixed(1) : "0";
+
+  const remaining = Math.max(daily - currentOutput, 0);
+
   const maxValue = cumulativeData.length > 0 ? cumulativeData[cumulativeData.length - 1].cumulative : 0;
 
-  const yAxisMax = Math.max(maxValue, daily) * 1.1;
+  const yAxisMax = Math.ceil(Math.max(maxValue, daily) / 500) * 500;
 
   return (
     <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-6">
-      <div className="flex items-center justify-between mb-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <span className="w-1.5 h-6 rounded-full bg-violet-500" />
 
@@ -70,22 +78,51 @@ export default function CumulativeChart({ machineId, cumulativeData, daily }: Cu
         </div>
       </div>
 
+      {/* KPI Cards */}
+      <div className="grid grid-cols-4 gap-3 mb-6">
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <p className="text-[10px] uppercase text-slate-500 font-bold">Current Output</p>
+
+          <p className="text-2xl font-black text-indigo-600">{currentOutput}</p>
+        </div>
+
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <p className="text-[10px] uppercase text-slate-500 font-bold">Daily Target</p>
+
+          <p className="text-2xl font-black text-violet-600">{daily}</p>
+        </div>
+
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <p className="text-[10px] uppercase text-slate-500 font-bold">Remaining</p>
+
+          <p className="text-2xl font-black text-amber-600">{remaining}</p>
+        </div>
+
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <p className="text-[10px] uppercase text-slate-500 font-bold">Progress</p>
+
+          <p className="text-2xl font-black text-emerald-600">{completionPercentage}%</p>
+        </div>
+      </div>
+
+      {/* Empty State */}
       {cumulativeData.length === 0 ? (
-        <div className="flex items-center justify-center h-48 text-slate-400 text-sm font-medium">Awaiting data...</div>
+        <div className="flex items-center justify-center h-64 text-slate-400 text-sm font-medium">Awaiting production data...</div>
       ) : (
-        <ResponsiveContainer width="100%" height={280}>
+        <ResponsiveContainer width="100%" height={320}>
           <AreaChart
             data={cumulativeData}
             margin={{
-              top: 20,
+              top: 10,
               right: 20,
-              left: 10,
+              left: 0,
               bottom: 10,
             }}
           >
             <defs>
               <linearGradient id="violetGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
+
                 <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
               </linearGradient>
             </defs>
