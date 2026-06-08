@@ -1,120 +1,112 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import LineCard from "../components/Linecard";
 
-import ProductionTable from "@/app/components/ProductionTable";
-import CumulativeChart, { CumulativeDataPoint } from "@/app/components/CumulativeChart";
-import IntervalChart, { IntervalDataPoint } from "@/app/components/IntervalChart";
-import GoalCompletionStatus from "@/app/components/GoalCompletionStatus";
-import LineConfig from "@/app/components/LineConfig";
-import ProductionGapChart from "@/app/components/ProductionGapChart";
-
-// API Base URL
-const API_BASE = "http://localhost:3000/api/esp32";
-
-interface ApiLineData {
-  machineId: string;
-  dailyTarget: number;
-  hourlyTarget: number;
-  totalProductCount: number;
-  productCode: string;
-  floor: string;
-  supervisor: string;
+interface Line {
+  id: string;
+  machineId?: string;
+  productCode?: string;
+  targetCount?: number;
+  totalProductCount?: number;
 }
 
-export default function LineOverviewPage() {
-  const params = useParams();
-  const lineId = params?.id as string;
-
-  const [lineData, setLineData] = useState<ApiLineData | null>(null);
-  const [chartData, setChartData] = useState<CumulativeDataPoint[]>([]);
-  const [intervalData, setIntervalData] = useState<IntervalDataPoint[]>([]);
+export default function SuperuserDashboard() {
+  const [lines, setLines] = useState<Line[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const router = useRouter();
+
+  const fetchAllLines = useCallback(async () => {
+    try {
+      setError("");
+
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/api/esp32/all-lines`);
+
+      const data = res.data?.data;
+
+      if (data) {
+        const linesArray: Line[] = Object.entries(data).map(([key, value]) => ({
+          id: key,
+          ...(value as Omit<Line, "id">),
+        }));
+
+        setLines(linesArray);
+      } else {
+        setLines([]);
+      }
+    } catch (err) {
+      console.error("Error fetching lines:", err);
+      setError("Failed to load production lines");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!lineId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchAllLines();
 
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        // 1. Line දත්ත ලබාගැනීම
-        const res = await axios.get(`${API_BASE}/lines/${lineId}`);
-        const data = res.data.data;
-        setLineData(data);
+    const interval = setInterval(() => {
+      fetchAllLines();
+    }, 5000);
 
-        // 2. අදාළ Machine එකේ දත්ත ලබාගැනීම
-        if (data?.machineId) {
-          const outRes = await axios.get(`${API_BASE}/total-output/${data.machineId}`);
-
-          // චාර්ට් සඳහා දත්ත සකස් කිරීම
-          const hourlyData = outRes.data.hourlyData || [];
-          let current = 0;
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const cum = hourlyData.map((item: any) => {
-            current += item.output;
-            return { time: item.hour.split("-")[0], cumulative: current };
-          });
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const intv = hourlyData.map((item: any) => ({
-            time: item.hour.split("-")[0],
-            count: item.output,
-          }));
-
-          setChartData(cum);
-          setIntervalData(intv);
-        }
-      } catch (e) {
-        console.error("Dashboard Fetch Error:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
-  }, [lineId]);
+  }, [fetchAllLines]);
 
-  if (loading) return <div className="p-10 text-center">Loading Overview for {lineId}...</div>;
-  if (!lineData) return <div className="p-10 text-center">Line not found.</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-gray-300 border-t-blue-600"></div>
+          <p className="text-gray-600 font-medium">Loading Production Lines...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="bg-white p-6 rounded-xl shadow-md">
+          <p className="text-red-500 font-semibold">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
-      <main className="flex-1 p-6 overflow-y-auto">
-        <header className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Overview: {lineId}</h1>
-        </header>
+    <div className="min-h-screen bg-gray-100 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-center gap-4 mb-8">
+          <Image src="/logo.png" alt="Flexicare Lanka" width={90} height={90} priority />
 
-        <GoalCompletionStatus
-          liveCount={chartData[chartData.length - 1]?.cumulative || 0}
-          daily={lineData.dailyTarget}
-          total={lineData.totalProductCount}
-          hourly={lineData.hourlyTarget}
-          lineData={lineData}
-          dailyPct={lineData.dailyTarget ? Math.round(((chartData[chartData.length - 1]?.cumulative || 0) / lineData.dailyTarget) * 100) : 0}
-        />
-
-        <div className="flex flex-col gap-6 mt-8">
-          <CumulativeChart machineId={lineData.machineId} cumulativeData={chartData} daily={lineData.dailyTarget} />
-          <IntervalChart machineId={lineData.machineId} data={intervalData} hourlyTarget={lineData.hourlyTarget} />
+          <h1 className="text-4xl font-extrabold text-gray-900">Flexicare Lanka Production Dashboard</h1>
         </div>
 
-        <div className="mt-8">
-          <ProductionTable />
-        </div>
+        {/* Sub Header */}
+        <h2 className="text-2xl font-bold text-gray-700 text-center mb-8">Active Production Lines</h2>
 
-        <div className="grid grid-cols-1 pt-6 lg:grid-cols-2 gap-6">
-          <LineConfig lineData={lineData} />
-        </div>
-
-        <div className="mt-8">
-          <ProductionGapChart machineId={lineData.machineId} />
-        </div>
-      </main>
+        {/* No Data */}
+        {lines.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-md p-8 text-center">
+            <p className="text-gray-500 text-lg">No Production Lines Available</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {lines.map((line) => (
+              <button key={line.id} onClick={() => router.push(`/Superuser/${line.id}`)} className="text-left cursor-pointer transition-transform hover:scale-105 focus:outline-none">
+                <LineCard line={line.id} product={line.productCode || "N/A"} machine={line.machineId || "No Machine"} target={line.targetCount || 0} current={line.totalProductCount || 0} />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -152,6 +152,7 @@ export default function LineAssignmentPanel() {
       // දත්ත Save කළ පසු, අලුත් දත්ත නැවත Backend එකෙන් ලබාගැනීම
       const linesResponse = await axios.get("http://localhost:3000/api/esp32/lines", {
         headers: getAuthHeaders(),
+        //headers: localStorage.getItem("token")
       });
       if (linesResponse.data.success && linesResponse.data.data) {
         setLines(linesResponse.data.data);
@@ -168,7 +169,7 @@ export default function LineAssignmentPanel() {
 
   // --- UI Render ---
   return (
-    <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-6 max-w-5xl mx-auto">
+    <div className="bg-white border border-gray-200 shadow-sm p-6 w-full mx-auto">
       {initialLoading ? (
         <div className="py-10 text-center text-gray-500 font-semibold animate-pulse">Loading Data from Server...</div>
       ) : (
@@ -184,6 +185,9 @@ export default function LineAssignmentPanel() {
           <div className="grid grid-cols-1 md:grid-cols-2 text-stone-900 gap-5">
             {/* Line Selection */}
             <div>
+              <div>
+                <h1 className="text-center">Line Assignment Form</h1>
+              </div>
               <label className="block text-sm font-semibold text-gray-950 mb-2">Production Line</label>
               <select
                 value={selectedLine}
