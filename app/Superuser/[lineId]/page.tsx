@@ -1,11 +1,9 @@
-import LineConfig from "@/app/components/LineConfig";
 import ProductionTable from "@/app/components/ProductionTable";
 import ProductionGapChart from "@/app/components/ProductionGapChart";
-import GoalCompletionStatus from "@/app/components/GoalCompletionStatus";
 import CumulativeChart from "@/app/components/CumulativeChart";
 
-import Image from "next/image";
 import axios from "axios";
+import LineOverviewCard from "@/app/components/LineOverviewCard";
 
 interface PageProps {
   params: Promise<{
@@ -63,21 +61,14 @@ export default async function Page({ params }: PageProps) {
   return (
     <div className="bg-neutral-50 w-full min-h-screen p-4">
       {/* Header */}
-      <div className="flex items-center justify-center gap-4 mb-8">
-        <Image src="/logo.png" alt="Flexicare Lanka" width={90} height={90} priority />
-
-        <h1 className="text-4xl font-extrabold text-gray-900">flexicare Lanka Production Dashboard</h1>
-      </div>
 
       {/* Line Title */}
-      <h1 className="text-2xl font-extrabold text-center text-slate-800 mb-6">Line Overview {lineId}</h1>
+      <h1 className="text-2xl font-extrabold text-center text-slate-800 mb-6">{lineId} Overview </h1>
 
       {/* Top Section */}
       <div className="flex gap-4 items-start mb-4">
-        <LineConfig lineId={lineId} />
-
         <div className="flex-1">
-          <GoalCompletionStatus lineId={lineId} />
+          <LineOverviewCard lineId={lineId} />
         </div>
       </div>
 

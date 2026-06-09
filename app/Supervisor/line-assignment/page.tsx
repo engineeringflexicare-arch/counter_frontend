@@ -169,222 +169,253 @@ export default function LineAssignmentPanel() {
 
   // --- UI Render ---
   return (
-    <div className="bg-white border border-gray-200 shadow-sm p-6 w-full mx-auto">
-      {initialLoading ? (
-        <div className="py-10 text-center text-gray-500 font-semibold animate-pulse">Loading Data from Server...</div>
-      ) : (
-        <>
-          {/* Message Alert */}
-          {message && (
-            <div className={`mb-5 rounded-2xl p-4 border text-sm font-semibold ${message.includes("✓") ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>
-              {message}
-            </div>
-          )}
+    <div className="max-w-7xl mx-auto">
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8">
+        {initialLoading ? (
+          <div className="py-20 text-center text-slate-500 font-semibold animate-pulse">Loading Data from Server...</div>
+        ) : (
+          <>
+            {/* Page Header */}
+            <div className="mb-8 text-center">
+              <h2 className="text-3xl font-black text-slate-800">Line Assignment Form</h2>
 
-          {/* Form Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 text-stone-900 gap-5">
-            {/* Line Selection */}
-            <div>
-              <div>
-                <h1 className="text-center">Line Assignment Form</h1>
+              <p className="text-slate-500 mt-2">Configure production line and machine assignments</p>
+            </div>
+
+            {/* Alert Message */}
+            {message && (
+              <div className={`mb-6 rounded-2xl p-4 border text-sm font-semibold ${message.includes("✓") ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+                {message}
               </div>
-              <label className="block text-sm font-semibold text-gray-950 mb-2">Production Line</label>
-              <select
-                value={selectedLine}
-                onChange={(e) => {
-                  const lineKey = e.target.value;
-                  setSelectedLine(lineKey);
-                  const lineData = lines[lineKey];
-                  if (lineData) {
-                    setSelectedMachine(lineData.machineId?.trim() || "");
-                    setFloor(lineData.floor || "Production Floor"); // <--- Load floor if exists
-                    setProductCode(lineData.productCode || "");
-                    setDailyTarget(String(lineData.dailyTarget || ""));
-                    setHourlyTarget(String(lineData.hourlyTarget || ""));
-                    setTeamMembers(String(lineData.plannedMembers || ""));
-                    setShift(lineData.shift || "Day");
-                    setSupervisor(lineData.supervisor || "");
-                    setShiftStartTime(lineData.shiftStartTime || "08:00");
-                    setShiftEndTime(lineData.shiftEndTime || "16:00");
-                  } else {
-                    setSelectedMachine("");
-                    setFloor("Production Floor");
-                    setProductCode("");
-                    setDailyTarget("");
-                    setHourlyTarget("");
-                    setTeamMembers("");
-                    setSupervisor("");
-                  }
-                }}
-                className="w-full border border-gray-300 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+            )}
+
+            {/* Form Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-slate-900">
+              {/* Production Line */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Production Line</label>
+
+                <select
+                  value={selectedLine}
+                  onChange={(e) => {
+                    const lineKey = e.target.value;
+                    setSelectedLine(lineKey);
+
+                    const lineData = lines[lineKey];
+
+                    if (lineData) {
+                      setSelectedMachine(lineData.machineId?.trim() || "");
+                      setFloor(lineData.floor || "Production Floor");
+                      setProductCode(lineData.productCode || "");
+                      setDailyTarget(String(lineData.dailyTarget || ""));
+                      setHourlyTarget(String(lineData.hourlyTarget || ""));
+                      setTeamMembers(String(lineData.plannedMembers || ""));
+                      setShift(lineData.shift || "Day");
+                      setSupervisor(lineData.supervisor || "");
+                      setShiftStartTime(lineData.shiftStartTime || "08:00");
+                      setShiftEndTime(lineData.shiftEndTime || "16:00");
+                    }
+                  }}
+                  className="w-full border border-slate-300 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="">Select Line</option>
+
+                  {availableLines.map((lineKey) => (
+                    <option key={lineKey} value={lineKey}>
+                      {lineKey}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Machine */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold mb-2">
+                  <Cpu size={16} className="text-orange-500" />
+                  Machine
+                </label>
+
+                <select
+                  value={selectedMachine}
+                  onChange={(e) => setSelectedMachine(e.target.value.trim())}
+                  className="w-full border border-slate-300 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="">Select Machine</option>
+
+                  {machineOptions.map((machineKey) => (
+                    <option key={machineKey} value={machineKey}>
+                      {machineKey}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Floor */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold mb-2">
+                  <Building size={16} className="text-teal-500" />
+                  Floor
+                </label>
+
+                <select value={floor} onChange={(e) => setFloor(e.target.value)} className="w-full border border-slate-300 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none">
+                  <option value="Production Floor">Production Floor</option>
+
+                  <option value="Assembly Floor">Assembly Floor</option>
+                </select>
+              </div>
+
+              {/* Shift */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold mb-2">
+                  <SunMoon size={16} className="text-yellow-500" />
+                  Shift
+                </label>
+
+                <select value={shift} onChange={(e) => setShift(e.target.value)} className="w-full border border-slate-300 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none">
+                  <option value="Day">Day Shift</option>
+                  <option value="Night">Night Shift</option>
+                </select>
+              </div>
+
+              {/* Supervisor */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold mb-2">
+                  <Users size={16} className="text-pink-500" />
+                  Supervisor
+                </label>
+
+                <input
+                  type="text"
+                  value={supervisor}
+                  onChange={(e) => setSupervisor(e.target.value)}
+                  placeholder="Supervisor Name"
+                  className="w-full border border-slate-300 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              {/* Start Time */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold mb-2">
+                  <Clock size={16} className="text-blue-500" />
+                  Shift Start Time
+                </label>
+
+                <input
+                  type="time"
+                  value={shiftStartTime}
+                  onChange={(e) => setShiftStartTime(e.target.value)}
+                  className="w-full border border-slate-300 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              {/* End Time */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold mb-2">
+                  <Clock size={16} className="text-blue-500" />
+                  Shift End Time
+                </label>
+
+                <input
+                  type="time"
+                  value={shiftEndTime}
+                  onChange={(e) => setShiftEndTime(e.target.value)}
+                  className="w-full border border-slate-300 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              {/* Product Code */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold mb-2">
+                  <Package size={16} className="text-purple-500" />
+                  Product Code
+                </label>
+
+                <input
+                  type="text"
+                  value={productCode}
+                  onChange={(e) => setProductCode(e.target.value)}
+                  className="w-full border border-slate-300 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              {/* Team Members */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold mb-2">
+                  <Users size={16} className="text-cyan-500" />
+                  Team Members
+                </label>
+
+                <input
+                  type="number"
+                  value={teamMembers}
+                  onChange={(e) => setTeamMembers(e.target.value)}
+                  className="w-full border border-slate-300 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              {/* Daily Target */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold mb-2">
+                  <Target size={16} className="text-green-500" />
+                  Daily Target
+                </label>
+
+                <input
+                  type="number"
+                  value={dailyTarget}
+                  onChange={(e) => setDailyTarget(e.target.value)}
+                  className="w-full border border-slate-300 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              {/* Hourly Target */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold mb-2">
+                  <Target size={16} className="text-indigo-500" />
+                  Hourly Target
+                </label>
+
+                <input
+                  type="number"
+                  value={hourlyTarget}
+                  onChange={(e) => setHourlyTarget(e.target.value)}
+                  className="w-full border border-slate-300 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Save Button */}
+            <div className="mt-8">
+              <button
+                onClick={handleSaveAssignment}
+                disabled={loading}
+                className="
+                w-full
+                bg-linear-to-r
+                from-blue-600
+                to-indigo-600
+                hover:from-blue-700
+                hover:to-indigo-700
+                text-white
+                font-bold
+                py-4
+                rounded-2xl
+                shadow-lg
+                transition-all
+                flex
+                items-center
+                justify-center
+                gap-2
+              "
               >
-                <option value="">Select Line</option>
-                {availableLines.map((lineKey) => (
-                  <option key={lineKey} value={lineKey}>
-                    {lineKey}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <Save size={20} />
 
-            {/* Machine Selection */}
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                <Cpu size={16} className="text-orange-600" /> Machine
-              </label>
-              <select
-                value={selectedMachine}
-                onChange={(e) => setSelectedMachine(e.target.value.trim())}
-                className="w-full border border-gray-300 text-gray-900 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="" disabled={machineOptions.length === 0}>
-                  {machineOptions.length === 0 ? "No machines available" : "Select Machine"}
-                </option>
-                {selectedMachine && !machineOptions.includes(selectedMachine) && (
-                  <option key="selected-machine" value={selectedMachine}>
-                    {selectedMachine}
-                  </option>
-                )}
-                {machineOptions.map((machineKey) => (
-                  <option key={machineKey} value={machineKey}>
-                    {machineKey}
-                  </option>
-                ))}
-              </select>
+                {loading ? "Saving Assignment..." : "Save Line Assignment"}
+              </button>
             </div>
-
-            {/* Floor Selection  */}
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-2">
-                <Building size={16} className="text-teal-600" /> Floor
-              </label>
-              <select
-                value={floor}
-                onChange={(e) => setFloor(e.target.value)}
-                className="w-full border text-gray-900 border-gray-300 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Production Floor">Production Floor</option>
-                <option value="Assembly Floor">Assembly Floor</option>
-              </select>
-            </div>
-
-            {/* Shift Selection */}
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                <SunMoon size={16} className="text-yellow-500" /> Shift
-              </label>
-              <select value={shift} onChange={(e) => setShift(e.target.value)} className="w-full border border-gray-300 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="Day">Day Shift</option>
-                <option value="Night">Night Shift</option>
-              </select>
-            </div>
-
-            {/* Supervisor */}
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                <Users size={16} className="text-pink-600" /> Supervisor Name
-              </label>
-              <input
-                type="text"
-                value={supervisor}
-                onChange={(e) => setSupervisor(e.target.value)}
-                placeholder="e.g. Nimal Perera"
-                className="w-full border border-gray-300 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Shift Start Time */}
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                <Clock size={16} className="text-blue-600" /> Shift Start Time
-              </label>
-              <input
-                type="time"
-                value={shiftStartTime}
-                onChange={(e) => setShiftStartTime(e.target.value)}
-                className="w-full border border-gray-300 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Shift End Time */}
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                <Clock size={16} className="text-blue-600" /> Shift End Time
-              </label>
-              <input
-                type="time"
-                value={shiftEndTime}
-                onChange={(e) => setShiftEndTime(e.target.value)}
-                className="w-full border border-gray-300 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Product Code */}
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                <Package size={16} className="text-purple-600" /> Product Code
-              </label>
-              <input
-                type="text"
-                value={productCode}
-                onChange={(e) => setProductCode(e.target.value)}
-                placeholder="Enter product code"
-                className="w-full border border-gray-300 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Team Members */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Team Members Count</label>
-              <input
-                type="number"
-                value={teamMembers}
-                onChange={(e) => setTeamMembers(e.target.value)}
-                placeholder="Number of members"
-                className="w-full border border-gray-300 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Daily Target */}
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                <Target size={16} className="text-green-600" /> Daily Target
-              </label>
-              <input
-                type="number"
-                value={dailyTarget}
-                onChange={(e) => setDailyTarget(e.target.value)}
-                placeholder="Daily target"
-                className="w-full border border-gray-300 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Hourly Target */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Hourly Target</label>
-              <input
-                type="number"
-                value={hourlyTarget}
-                onChange={(e) => setHourlyTarget(e.target.value)}
-                placeholder="Hourly target"
-                className="w-full border border-gray-300 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Save Button */}
-          <div className="mt-8">
-            <button
-              onClick={handleSaveAssignment}
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-4 rounded-2xl transition flex items-center justify-center gap-2"
-            >
-              <Save size={20} />
-              {loading ? "Saving Assignment..." : "Save Line Assignment"}
-            </button>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

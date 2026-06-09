@@ -1,16 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Factory, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Factory, LogOut, Menu, X, Bell } from "lucide-react";
+import Image from "next/image";
 
 export default function SuperuserLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
   const [collapsed, setCollapsed] = useState(false);
+  const [currentTime, setCurrentTime] = useState("");
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+
+      setCurrentTime(
+        now.toLocaleString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+        }),
+      );
+    };
+
+    updateTime();
+
+    const interval = setInterval(updateTime, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const menuItems = [
     {
@@ -32,7 +57,7 @@ export default function SuperuserLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen bg-slate-100">
-      {/* Mobile Overlay */}
+      {/* Overlay */}
       {sidebarOpen && <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
       {/* Sidebar */}
@@ -54,23 +79,21 @@ export default function SuperuserLayout({ children }: { children: React.ReactNod
       >
         {/* Logo */}
         <div className="p-5 border-b border-slate-800 flex items-center justify-between">
-          {!collapsed && (
+          {!collapsed ? (
             <div>
-              <h1 className="text-xl font-sans font-black">flexicare Dashboard</h1>
+              <h1 className="text-xl font-black">Flexicare Dashboard</h1>
 
               <p className="text-xs text-slate-400 mt-1">Production Monitoring</p>
             </div>
+          ) : (
+            <div className="mx-auto text-2xl font-black">F</div>
           )}
 
-          {collapsed && <div className="mx-auto text-2xl font-black">f</div>}
-
           <div className="flex items-center gap-2">
-            {/* Desktop Toggle */}
-            <button onClick={() => setCollapsed(!collapsed)} className="hidden lg:flex p-2 rounded-lg hover:bg-slate-800 transition">
+            <button onClick={() => setCollapsed(!collapsed)} className="hidden lg:flex p-2 rounded-lg hover:bg-slate-800">
               <Menu size={20} />
             </button>
 
-            {/* Mobile Close */}
             <button className="lg:hidden p-2 rounded-lg hover:bg-slate-800" onClick={() => setSidebarOpen(false)}>
               <X size={20} />
             </button>
@@ -124,10 +147,10 @@ export default function SuperuserLayout({ children }: { children: React.ReactNod
               ${collapsed ? "justify-center" : "justify-center gap-2"}
               bg-red-600
               hover:bg-red-700
-              transition-all
               rounded-xl
               py-3
               font-semibold
+              transition-all
             `}
           >
             <LogOut size={18} />
@@ -139,17 +162,49 @@ export default function SuperuserLayout({ children }: { children: React.ReactNod
 
       {/* Main Section */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile Topbar */}
-        <header className="lg:hidden h-16 bg-white border-b border-slate-200 flex items-center px-4 shadow-sm sticky top-0 z-30">
-          <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-slate-100">
-            <Menu size={22} />
-          </button>
+        {/* Header */}
+        <header className="h-16 bg-white border-b border-slate-200 shadow-sm flex items-center justify-between px-6 sticky top-0 z-30">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 rounded-lg hover:bg-slate-100">
+              <Menu size={22} />
+            </button>
 
-          <h2 className="ml-3 font-bold text-slate-800">Flexi Dashboard</h2>
+            <div className="flex items-center justify-center gap-4 mb-8">
+              <Image src="/logo.png" alt="Flexicare Lanka" width={30} height={30} priority />
+
+              <h1 className="text-xl font-extrabold text-gray-900">flexicare Lanka Production Dashboard</h1>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {/* Date & Time */}
+            <div className="hidden lg:flex flex-col items-center bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">
+              <span className="text-sm font-bold text-slate-800">{currentTime}</span>
+
+              <span className="text-[10px] text-slate-500 uppercase">Sri Lanka Time</span>
+            </div>
+
+            {/* Notification */}
+            <button className="relative p-2 rounded-lg hover:bg-slate-100">
+              <Bell size={20} />
+
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+            </button>
+
+            {/* User */}
+            <div className="hidden md:block text-right">
+              <p className="text-sm font-semibold text-slate-700">Superuser</p>
+
+              <p className="text-xs text-slate-500">Production Department</p>
+            </div>
+
+            {/* Avatar */}
+            <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">S</div>
+          </div>
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="flex-1 overflow-y-auto p-5">{children}</main>
       </div>
     </div>
   );
