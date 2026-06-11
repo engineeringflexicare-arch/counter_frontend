@@ -48,6 +48,7 @@ export default function LineAssignmentPanel() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [message, setMessage] = useState("");
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
   // --- Fetch Data From Backend API ---
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -55,13 +56,13 @@ export default function LineAssignmentPanel() {
         setInitialLoading(true);
 
         // 1. Backend එකෙන් Lines දත්ත ලබාගැනීම
-        const linesResponse = await axios.get("http://localhost:3000/api/esp32/lines");
+        const linesResponse = await axios.get(`${API_BASE_URL}/api/esp32/lines`);
         if (linesResponse.data.success && linesResponse.data.data) {
           setLines(linesResponse.data.data);
         }
 
         // 2. Backend එකෙන් සියලුම දත්ත (Machines ද ඇතුළුව) ලබාගැනීම
-        const allDataResponse = await axios.get("http://localhost:3000/api/esp32/");
+        const allDataResponse = await axios.get(`${API_BASE_URL}/api/esp32/"`);
         if (allDataResponse.data.success && allDataResponse.data.data) {
           const allData = allDataResponse.data.data;
           const machineData: Record<string, MachineData> = {};
@@ -81,7 +82,7 @@ export default function LineAssignmentPanel() {
     };
 
     fetchInitialData();
-  }, []);
+  }, [API_BASE_URL]);
 
   // --- Handle Save Assignment ---
   const handleSaveAssignment = async () => {

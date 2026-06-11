@@ -44,8 +44,13 @@ export default function SuperuserLayout({ children }: { children: React.ReactNod
       icon: LayoutDashboard,
     },
     {
-      name: "Production",
-      href: "/Superuser/production",
+      name: "Asembly Foor",
+      href: "/Superuser/Asemblyfoor",
+      icon: Factory,
+    },
+    {
+      name: "Manufacturing Floor",
+      href: "/Superuser/Manufacturingfloor",
       icon: Factory,
     },
   ];
@@ -169,8 +174,9 @@ export default function SuperuserLayout({ children }: { children: React.ReactNod
               <Menu size={22} />
             </button>
 
-            <div className="flex items-center justify-center gap-4 mb-8">
-              <Image src="/logo.png" alt="Flexicare Lanka" width={30} height={30} priority />
+            <div className="flex items-center justify-center gap-4 mb-1">
+              {/* මෙතන තමයි වෙනස් කළේ 👇 */}
+              <Image src="/logo.png" alt="Flexicare Lanka" width={40} height={40} style={{ width: "auto", height: "40px" }} priority />
 
               <h1 className="text-xl font-extrabold text-gray-900">flexicare Lanka Production Dashboard</h1>
             </div>
@@ -180,8 +186,6 @@ export default function SuperuserLayout({ children }: { children: React.ReactNod
             {/* Date & Time */}
             <div className="hidden lg:flex flex-col items-center bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">
               <span className="text-sm font-bold text-slate-800">{currentTime}</span>
-
-              <span className="text-[10px] text-slate-500 uppercase">Sri Lanka Time</span>
             </div>
 
             {/* Notification */}

@@ -38,11 +38,11 @@ export default function SupervisorDashboard() {
   if (loading) return <div className="p-10 text-center text-gray-500">Loading...</div>;
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
+    <div className="min-h-screen font-Google_Sans bg-gray-100 p-6">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-extrabold text-gray-900 mb-8 text-center">Active Production Lines</h1>
+        <h1 className="text-4xl font-extrabold font-sans text-gray-900 mb-8 text-center">Active Production Lines</h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="flex flex-wrap justify-items-start gap-4">
           {lines.map((line) => (
             <div key={line.id} onClick={() => router.push(`/Supervisor/${line.id}`)} className="cursor-pointer transition-transform hover:scale-105">
               <LineCard line={line.id} product={line.productCode || "N/A"} machine={line.machineId || "No Machine"} target={line.targetCount || 0} current={line.totalProductCount || 0} />

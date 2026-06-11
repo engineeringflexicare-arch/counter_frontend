@@ -17,6 +17,7 @@ interface DashboardData {
 }
 
 export default function LineOverviewCard({ lineId }: Props) {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
   const [data, setData] = useState<DashboardData>({
     current: 0,
     target: 0,
@@ -28,7 +29,7 @@ export default function LineOverviewCard({ lineId }: Props) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await axios.get(`http://localhost:3000/api/esp32/line-live-data/${lineId}`);
+        const res = await axios.get(`${API_BASE_URL}/api/esp32/line-live-data/${lineId}`);
 
         if (res.data.success) {
           setData({
@@ -49,7 +50,7 @@ export default function LineOverviewCard({ lineId }: Props) {
     const interval = setInterval(fetchData, 3000);
 
     return () => clearInterval(interval);
-  }, [lineId]);
+  }, [API_BASE_URL, lineId]);
 
   const percentage = data.target > 0 ? ((data.current / data.target) * 100).toFixed(1) : "0";
 

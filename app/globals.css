@@ -6,7 +6,14 @@
   --font-geist-sans: "DM Sans", sans-serif;
   --font-geist-mono: "DM Mono", monospace;
 }
-
+.google-sans-custom {
+  font-family: "Google Sans", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  /* 400 (Regular), 500 (Medium), හෝ 700 (Bold) ලෙස අවශ්‍ය ඝනකම ලබා දෙන්න */
+  font-style: normal;
+  font-variation-settings: "GRAD" 0;
+}
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

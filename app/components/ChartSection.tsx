@@ -13,10 +13,12 @@ export default function ChartSection({ lineId }: ChartSectionProps) {
   const [dailyTarget, setDailyTarget] = useState(0);
   const [cumulativeData, setCumulativeData] = useState<CumulativeDataPoint[]>([]);
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const liveRes = await axios.get(`http://localhost:3000/api/esp32/line-live-data/${lineId}`);
+        const liveRes = await axios.get(`${API_BASE_URL}/api/esp32/line-live-data/${lineId}`);
 
         if (!liveRes.data.success) return;
 
@@ -25,7 +27,7 @@ export default function ChartSection({ lineId }: ChartSectionProps) {
         setMachineId(machine);
         setDailyTarget(liveRes.data.target || 0);
 
-        const outputRes = await axios.get(`http://localhost:3000/api/esp32/total-output/${machine}`);
+        const outputRes = await axios.get(`${API_BASE_URL}/api/esp32/total-output/${machine}`);
 
         if (outputRes.data.success) {
           let runningTotal = 0;
@@ -54,7 +56,7 @@ export default function ChartSection({ lineId }: ChartSectionProps) {
     const interval = setInterval(fetchData, 10000);
 
     return () => clearInterval(interval);
-  }, [lineId]);
+  }, [API_BASE_URL, lineId]);
 
   return <CumulativeChart machineId={machineId} cumulativeData={cumulativeData} daily={dailyTarget} />;
 }

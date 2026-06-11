@@ -14,27 +14,34 @@ interface LineCardProps {
 export default function LineCard({ line, product, machine, target: propTarget, current: propCurrent }: LineCardProps) {
   const [target, setTarget] = useState(propTarget);
   const [current, setCurrent] = useState(propCurrent);
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
   useEffect(() => {
+    // Machine ID එකක් නැත්නම් request එක යවන්නේ නැතිවෙන්න
+    if (!machine) return;
+
     const fetchLiveMetrics = async () => {
       try {
-        const res = await axios.get(`http://localhost:3000/api/esp32/metrics/${machine}`);
+        const res = await axios.get(`${API_BASE_URL}/api/esp32/metrics/${machine}`);
 
-        if (res.data.success) {
+        if (res.data?.success) {
           setCurrent(res.data.data.current || 0);
           setTarget(res.data.data.target || 0);
         }
       } catch (error) {
-        console.error("Live Metrics Error:", error);
+        // Error එක එනවා නම් console එක පිරෙන්න නොදී එක පාරක් විතරක් ලොග් වෙන්න හැදීම හොඳයි
+        console.error(`Live Metrics Error for Machine [${machine}]:`, error);
       }
     };
 
+    // මුල් වතාවටත් දත්ත ලබාගැනීම
     fetchLiveMetrics();
 
+    // තත්පර 3න් 3ට දත්ත ලබාගැනීම
     const interval = setInterval(fetchLiveMetrics, 3000);
 
     return () => clearInterval(interval);
-  }, [machine]);
+  }, [API_BASE_URL, machine]);
 
   const percentage = target > 0 ? Math.min((current / target) * 100, 100) : 0;
 
@@ -46,7 +53,7 @@ export default function LineCard({ line, product, machine, target: propTarget, c
       <div className="flex justify-between items-center mb-2">
         <h2 className="font-bold text-base text-slate-800">{line}</h2>
 
-        <span className="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-semibold">{machine}</span>
+        <span className="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-semibold">{machine || "No Machine"}</span>
       </div>
 
       {/* Details */}

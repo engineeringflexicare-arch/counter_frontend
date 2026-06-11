@@ -1,7 +1,6 @@
 import ProductionTable from "@/app/components/ProductionTable";
 import ProductionGapChart from "@/app/components/ProductionGapChart";
 import CumulativeChart from "@/app/components/CumulativeChart";
-
 import axios from "axios";
 import LineOverviewCard from "@/app/components/LineOverviewCard";
 
@@ -22,12 +21,15 @@ export default async function Page({ params }: PageProps) {
   let machineId = "Machine_01";
   let dailyTarget = 4300;
 
+  // Base URL එක ලබා ගැනීම
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+
   try {
-    const lineRes = await axios.get(`http://localhost:3000/api/esp32/line/${lineId}`);
+    // 1. පරණ /line/ වෙනුවට අලුත් /lines/ route එක යොදා ඇත
+    const lineRes = await axios.get(`${API_BASE_URL}/api/esp32/lines/${lineId}`);
 
     if (lineRes.data?.success) {
       machineId = lineRes.data.data?.machineId || "Machine_01";
-
       dailyTarget = lineRes.data.data?.dailyTarget || 4300;
     }
   } catch (error) {
@@ -40,7 +42,8 @@ export default async function Page({ params }: PageProps) {
   }[] = [];
 
   try {
-    const res = await axios.get(`http://localhost:3000/api/esp32/total-output/${machineId}`);
+    // 2. පරණ /total-output/ වෙනුවට අලුත් /hourly-production/ route එක යොදා ඇත
+    const res = await axios.get(`${API_BASE_URL}/api/esp32/hourly-production/${machineId}`);
 
     if (res.data?.success && Array.isArray(res.data.hourlyData)) {
       let cumulative = 0;
@@ -79,7 +82,7 @@ export default async function Page({ params }: PageProps) {
 
       {/* Gap Analysis */}
       <div className="mb-4">
-        <ProductionGapChart machineId={machineId} />
+        <ProductionGapChart lineId={lineId} />
       </div>
 
       {/* Production Table */}
