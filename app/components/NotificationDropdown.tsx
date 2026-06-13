@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react"; // useCallback ඉවත් කළ හැක
+import React, { useState } from "react";
 import { Bell, AlertTriangle, Info, X } from "lucide-react";
-import axios from "axios";
 
 interface AlertItem {
   id: string;
@@ -12,36 +11,32 @@ interface AlertItem {
 
 export default function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<AlertItem[]>([]);
+  const [notifications] = useState<AlertItem[]>([]);
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  // නිවැරදි කළ නම: NEXT_PUBLIC_API_BASE_URL
 
-  useEffect(() => {
-    // API call එක කරන function එක useEffect එක ඇතුළතම නිර්මාණය කිරීම
-    const fetchAlerts = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const response = await axios.get(`${API_BASE_URL}/api/esp32/alerts`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+  // useEffect(() => {
+  //   const fetchAlerts = async () => {
+  //     try {
+  //       const token = localStorage.getItem("token");
+  //       const response = await axios.get(`${API_BASE_URL}/api/esp32/alerts`, {
+  //         headers: { Authorization: `Bearer ${token}` },
+  //       });
 
-        if (response.data.success) {
-          setNotifications(response.data.data.reverse());
-        }
-      } catch (error) {
-        console.error("Error fetching alerts:", error);
-      }
-    };
+  //       if (response.data.success) {
+  //         // දත්ත ලබාගැනීම
+  //         setNotifications(response.data.data.reverse());
+  //       }
+  //     } catch (error) {
+  //       console.error("Error fetching alerts:", error);
+  //     }
+  //   };
 
-    // Component එක mount වූ වහාම දත්ත ලබා ගැනීම
-    fetchAlerts();
+  //   fetchAlerts();
 
-    // ඉන්පසු තත්පර 60කට වරක් දත්ත යාවත්කාලීන කිරීම
-    const interval = setInterval(fetchAlerts, 60000);
-
-    // Component එක unmount වෙද්දී interval එක ඉවත් කිරීම (cleanup)
-    return () => clearInterval(interval);
-  }, [API_BASE_URL]); // දැන් dependency එක ලෙස ඇත්තේ API_BASE_URL පමණි
+  //   const interval = setInterval(fetchAlerts, 60000);
+  //   return () => clearInterval(interval);
+  // }, [API_BASE_URL]);
 
   return (
     <div className="relative">

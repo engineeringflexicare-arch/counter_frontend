@@ -29,7 +29,8 @@ export default function LinePage({ params }: PageProps) {
   const [dailyTarget, setDailyTarget] = useState(4300);
   const [cumulativeChartData, setCumulativeChartData] = useState<{ time: string; cumulative: number }[]>([]);
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  // නිවැරදි කළ නම: NEXT_PUBLIC_API_BASE_URL
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
   useEffect(() => {
     const fetchData = async () => {
@@ -45,7 +46,6 @@ export default function LinePage({ params }: PageProps) {
         }
 
         // 2. තෝරාගත් දිනයට (selectedDate) අදාළව Hourly Production Data ලබා ගැනීම
-        // මෙතන ?date=${selectedDate} නිවැරදිව URL එකට එකතු වේ
         const res = await axios.get(`${API_BASE_URL}/api/esp32/hourly-production/${currentMachineId}?date=${selectedDate}`);
 
         if (res.data?.success && Array.isArray(res.data.hourlyData)) {
@@ -81,7 +81,6 @@ export default function LinePage({ params }: PageProps) {
       {/* Top Section */}
       <div className="flex gap-4 items-start mb-4">
         <div className="flex-1">
-          {/* මෙතැනදීත් අවශ්‍ය නම් LineOverviewCard එකට date එක pass කරන්න පුළුවන් */}
           <LineOverviewCard lineId={lineId} />
         </div>
       </div>
@@ -96,7 +95,7 @@ export default function LinePage({ params }: PageProps) {
         <ProductionGapChart lineId={lineId} date={selectedDate} />
       </div>
 
-      {/* Production Table - මෙතනදී date එක pass කිරීමෙන් Table එක filter වේ */}
+      {/* Production Table */}
       <ProductionTable lineId={lineId} date={selectedDate} />
     </div>
   );

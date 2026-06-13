@@ -56,7 +56,8 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
   const [rows, setRows] = useState<TableRow[]>([]);
   const maxHours = 12;
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  // නිවැරදි කළ නම: NEXT_PUBLIC_API_BASE_URL
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
   // සියලුම export ආකාර (Excel / Word / PDF) සඳහා පොදුවේ පාවිච්චි වන table HTML එක නිර්මාණය කිරීම
   const buildTableHtml = (): string => {
@@ -119,7 +120,9 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
     if (rows.length === 0) return;
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write(`<html><head><meta charset="UTF-8"><title>${reportTitle}</title><style>body{font-family:Arial,sans-serif;padding:16px;}h2{margin-bottom:12px;}table{width:100%;}th,td{text-align:center;}@media print{@page{size:landscape;}}</style></head><body><h2>${reportTitle}</h2>${buildTableHtml()}</body></html>`);
+    win.document.write(
+      `<html><head><meta charset="UTF-8"><title>${reportTitle}</title><style>body{font-family:Arial,sans-serif;padding:16px;}h2{margin-bottom:12px;}table{width:100%;}th,td{text-align:center;}@media print{@page{size:landscape;}}</style></head><body><h2>${reportTitle}</h2>${buildTableHtml()}</body></html>`,
+    );
     win.document.close();
     win.focus();
     win.onload = () => {
@@ -226,51 +229,51 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
 
       <div className="overflow-x-auto">
         <table className="w-full text-center text-sm border-collapse">
-        <thead>
-          <tr className="bg-[#dfe4d3] text-gray-700">
-            <th className="border p-2">Assembly Line</th>
-            <th className="border p-2">Product Code</th>
-            <th className="border p-2">Total Output</th>
-            <th className="border p-2">Progress (%)</th>
-            <th className="border p-2">Start Time</th>
-            {Array.from({ length: maxHours }).map((_, i) => (
-              <th key={i} className="border p-2 text-xs">
-                {rows[0]?.shiftHours[i]?.split("-")[0] || `H${i + 1}`}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => {
-            const percentage = row.dailyTarget > 0 ? ((row.totalOutput / row.dailyTarget) * 100).toFixed(1) : "0.0";
-            let cumulative = 0; // එක් එක් පැයට අදාළ සමුච්චිත (cumulative) ගණන
-            return (
-              <tr key={index} className="hover:bg-gray-50 text-gray-800">
-                <td className="border p-2 font-semibold">{row.assemblyLine}</td>
-                <td className="border p-2">{row.productCode}</td>
-                <td className="border p-2 font-bold text-blue-700">{row.totalOutput}</td>
-                <td className="border p-2 font-bold text-purple-700">{percentage}%</td>
-                <td className="border p-2 font-bold text-green-600">{row.shiftStartTime}</td>
-                {row.shiftHours.map((hour, i) => {
-                  const hourlyOutput = row.hourlyData[hour] || 0;
-                  cumulative += hourlyOutput;
-                  // එම පැයේ ඉලක්කයට අදාළ ප්‍රගති ප්‍රතිශතය
-                  const hourlyPercent = row.hourlyTarget > 0 ? ((hourlyOutput / row.hourlyTarget) * 100).toFixed(0) : "0";
-                  return (
-                    <td key={i} className="border p-2">
-                      <div className={`font-semibold ${hourlyOutput >= row.hourlyTarget ? "text-green-600" : "text-red-600"}`}>{hourlyOutput}</div>
-                      {/* එම පැයේ ඉලක්කය සපුරා ඇති ප්‍රතිශතය */}
-                      <div className={`text-[10px] font-semibold ${hourlyOutput >= row.hourlyTarget ? "text-green-500" : "text-red-400"}`}>{hourlyPercent}%</div>
-                      {/* එම පැය දක්වා එකතු වූ සමුච්චිත ගණන */}
-                      <div className="text-[10px] font-medium text-slate-400 mt-0.5">{cumulative}</div>
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+          <thead>
+            <tr className="bg-[#dfe4d3] text-gray-700">
+              <th className="border p-2">Assembly Line</th>
+              <th className="border p-2">Product Code</th>
+              <th className="border p-2">Total Output</th>
+              <th className="border p-2">Progress (%)</th>
+              <th className="border p-2">Start Time</th>
+              {Array.from({ length: maxHours }).map((_, i) => (
+                <th key={i} className="border p-2 text-xs">
+                  {rows[0]?.shiftHours[i]?.split("-")[0] || `H${i + 1}`}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => {
+              const percentage = row.dailyTarget > 0 ? ((row.totalOutput / row.dailyTarget) * 100).toFixed(1) : "0.0";
+              let cumulative = 0; // එක් එක් පැයට අදාළ සමුච්චිත (cumulative) ගණන
+              return (
+                <tr key={index} className="hover:bg-gray-50 text-gray-800">
+                  <td className="border p-2 font-semibold">{row.assemblyLine}</td>
+                  <td className="border p-2">{row.productCode}</td>
+                  <td className="border p-2 font-bold text-blue-700">{row.totalOutput}</td>
+                  <td className="border p-2 font-bold text-purple-700">{percentage}%</td>
+                  <td className="border p-2 font-bold text-green-600">{row.shiftStartTime}</td>
+                  {row.shiftHours.map((hour, i) => {
+                    const hourlyOutput = row.hourlyData[hour] || 0;
+                    cumulative += hourlyOutput;
+                    // එම පැයේ ඉලක්කයට අදාළ ප්‍රගති ප්‍රතිශතය
+                    const hourlyPercent = row.hourlyTarget > 0 ? ((hourlyOutput / row.hourlyTarget) * 100).toFixed(0) : "0";
+                    return (
+                      <td key={i} className="border p-2">
+                        <div className={`font-semibold ${hourlyOutput >= row.hourlyTarget ? "text-green-600" : "text-red-600"}`}>{hourlyOutput}</div>
+                        {/* එම පැයේ ඉලක්කය සපුරා ඇති ප්‍රතිශතය */}
+                        <div className={`text-[10px] font-semibold ${hourlyOutput >= row.hourlyTarget ? "text-green-500" : "text-red-400"}`}>{hourlyPercent}%</div>
+                        {/* එම පැය දක්වා එකතු වූ සමුච්චිත ගණන */}
+                        <div className="text-[10px] font-medium text-slate-400 mt-0.5">{cumulative}</div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );

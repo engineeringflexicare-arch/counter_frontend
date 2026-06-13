@@ -31,8 +31,8 @@ export default function SuperuserDashboard() {
     try {
       setError("");
 
-      // මෙතන URL එක /api/esp32/lines ලෙස වෙනස් කර ඇත.
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/api/esp32/lines`);
+      // නිවැරදි කළ .env නම: NEXT_PUBLIC_API_BASE_URL
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/esp32/lines`);
 
       const data = res.data?.data;
 
@@ -75,7 +75,10 @@ export default function SuperuserDashboard() {
         if (isMounted) setHourlyTrend([]);
         return;
       }
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+
+      // නිවැරදි කළ .env නම: NEXT_PUBLIC_API_BASE_URL
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
       try {
         const responses = await Promise.all(
           machineIds.map(async (machineId) => {
@@ -85,7 +88,7 @@ export default function SuperuserDashboard() {
             } catch {
               return [];
             }
-          })
+          }),
         );
 
         // පැය අනුව සියලුම machines වල output එකතු කිරීම
@@ -229,10 +232,7 @@ export default function SuperuserDashboard() {
                     <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} interval={0} angle={-15} textAnchor="end" height={50} />
                     <YAxis tick={{ fill: "#64748b", fontSize: 12 }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
-                      cursor={{ fill: "rgba(148,163,184,0.1)" }}
-                    />
+                    <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} cursor={{ fill: "rgba(148,163,184,0.1)" }} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
                     <Bar dataKey="target" name="Target" fill="#cbd5e1" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="output" name="Output" fill="#3b82f6" radius={[4, 4, 0, 0]} />
@@ -258,10 +258,7 @@ export default function SuperuserDashboard() {
                           <Cell key={entry.name} fill={floorPalette[i % floorPalette.length]} />
                         ))}
                       </Pie>
-                      <Tooltip
-                        formatter={(value) => Number(value).toLocaleString()}
-                        contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
-                      />
+                      <Tooltip formatter={(value) => Number(value).toLocaleString()} contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
                     </PieChart>
                   </ResponsiveContainer>
@@ -346,7 +343,13 @@ export default function SuperuserDashboard() {
                 <div className="flex flex-wrap gap-4">
                   {floorGroups[floor].map((line) => (
                     <button key={line.id} onClick={() => router.push(`/Superuser/${line.id}`)} className="text-left cursor-pointer transition-transform hover:scale-105 focus:outline-none">
-                      <LineCard line={line.id} product={line.productCode || "N/A"} machine={line.machineId || "No Machine"} target={line.targetCount || line.dailyTarget || 0} current={line.totalProductCount || 0} />
+                      <LineCard
+                        line={line.id}
+                        product={line.productCode || "N/A"}
+                        machine={line.machineId || "No Machine"}
+                        target={line.targetCount || line.dailyTarget || 0}
+                        current={line.totalProductCount || 0}
+                      />
                     </button>
                   ))}
                 </div>

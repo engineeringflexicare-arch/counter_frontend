@@ -25,7 +25,10 @@ export default function LineAssignmentRemovePanel() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
   // --- FETCH DATA ---
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   async function fetchLines() {
     try {
       setFetching(true);
@@ -34,7 +37,7 @@ export default function LineAssignmentRemovePanel() {
       const token = localStorage.getItem("token");
 
       // .env එක හරහා API URL එක ලබා ගැනීම සහ Token යැවීම
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/esp32/lines`, {
+      const response = await axios.get(`${API_BASE_URL}/api/esp32/lines`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -60,7 +63,7 @@ export default function LineAssignmentRemovePanel() {
     };
 
     void loadLines();
-  }, []);
+  }, [fetchLines]);
 
   const lineKeys = Object.keys(lines);
   const hasLines = lineKeys.length > 0;
@@ -80,7 +83,7 @@ export default function LineAssignmentRemovePanel() {
 
       // .env එක හරහා API URL එක ලබා ගැනීම සහ Token යැවීම
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/esp32/remove-assignment`,
+        `${API_BASE_URL}/api/esp32/remove-assignment`,
         {
           lineId: selectedLine,
         },

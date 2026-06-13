@@ -21,8 +21,8 @@ export default async function Page({ params }: PageProps) {
   let machineId = "Machine_01";
   let dailyTarget = 4300;
 
-  // Base URL එක ලබා ගැනීම
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  // Base URL එක ලබා ගැනීම (නම නිවැරදි කර ඇත: NEXT_PUBLIC_API_BASE_URL)
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   try {
     // 1. පරණ /line/ වෙනුවට අලුත් /lines/ route එක යොදා ඇත

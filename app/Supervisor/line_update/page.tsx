@@ -42,7 +42,8 @@ export default function SupervisorLineUpdatePanel() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [message, setMessage] = useState("");
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  // නිවැරදි කළ .env නම භාවිතය
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
   useEffect(() => {
     const fetchData = async () => {
@@ -105,10 +106,12 @@ export default function SupervisorLineUpdatePanel() {
 
       setMessage("✓ Line details updated successfully!");
       setTimeout(() => setMessage(""), 3000);
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
-      setMessage(error.response?.data?.message || "Failed to update details.");
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        setMessage(error.response?.data?.message || "Failed to update details.");
+      } else {
+        setMessage("Failed to update details.");
+      }
     } finally {
       setLoading(false);
     }
@@ -122,7 +125,6 @@ export default function SupervisorLineUpdatePanel() {
 
   return (
     <div className="bg-white rounded-3xl border border-slate-200 shadow-lg p-6 sm:p-8 max-w-5xl mx-auto my-6">
-      {/* ලස්සනට සකසන ලද Header කොටස */}
       <div className="mb-8 pb-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-extrabold text-slate-900 flex items-center gap-3">
@@ -151,7 +153,6 @@ export default function SupervisorLineUpdatePanel() {
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Date Selection */}
             <div className="md:col-span-2 flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 p-5 rounded-2xl border border-slate-200">
               <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-3 sm:mb-0">
                 <Calendar size={18} className="text-blue-600" />
@@ -165,7 +166,6 @@ export default function SupervisorLineUpdatePanel() {
               />
             </div>
 
-            {/* Floor Selection */}
             <div className="md:col-span-2">
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
                 <Building size={16} className="text-slate-500" />
@@ -184,7 +184,6 @@ export default function SupervisorLineUpdatePanel() {
               </select>
             </div>
 
-            {/* Line Selection */}
             <div className="md:col-span-2">
               <label className="block text-sm font-semibold text-slate-700 mb-2">Select Your Line</label>
               <select
@@ -214,7 +213,6 @@ export default function SupervisorLineUpdatePanel() {
               </select>
             </div>
 
-            {/* Machine ID Dropdown */}
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
                 <Cpu size={16} className="text-slate-500" />
@@ -226,9 +224,7 @@ export default function SupervisorLineUpdatePanel() {
                 className="w-full border border-slate-300 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 transition-all"
               >
                 <option value="">-- No Machine --</option>
-
                 {machineId && !freeMachines.find((m) => m.machineId === machineId) && <option value={machineId}>{machineId} (Current)</option>}
-
                 {freeMachines.map((machine) => (
                   <option key={machine.machineId} value={machine.machineId}>
                     {machine.machineId} (Free)
@@ -237,7 +233,6 @@ export default function SupervisorLineUpdatePanel() {
               </select>
             </div>
 
-            {/* Product Code */}
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
                 <Package size={16} className="text-slate-500" />
@@ -252,7 +247,6 @@ export default function SupervisorLineUpdatePanel() {
               />
             </div>
 
-            {/* Shift */}
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
                 <SunMoon size={16} className="text-slate-500" />
@@ -268,7 +262,6 @@ export default function SupervisorLineUpdatePanel() {
               </select>
             </div>
 
-            {/* Team Members */}
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
                 <Users size={16} className="text-slate-500" />
@@ -282,7 +275,6 @@ export default function SupervisorLineUpdatePanel() {
               />
             </div>
 
-            {/* Daily Target */}
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
                 <Target size={16} className="text-slate-500" />
@@ -296,7 +288,6 @@ export default function SupervisorLineUpdatePanel() {
               />
             </div>
 
-            {/* Hourly Target */}
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
                 <Target size={16} className="text-slate-500" />

@@ -5,7 +5,7 @@ import axios from "axios";
 import { useRouter } from "next/navigation";
 import LineCard from "../components/Linecard";
 
-// 1. API එකෙන් එන දත්ත වල හැඩය (මෙහි id නොමැත)
+// 1. API එකෙන් එන දත්ත වල හැඩය
 interface ApiLineData {
   machineId?: string;
   productCode?: string;
@@ -14,7 +14,7 @@ interface ApiLineData {
   totalProductCount?: number;
 }
 
-// 2. Component එක ඇතුළේ භාවිතා කරන දත්ත වල හැඩය (මෙහි id ඇත)
+// 2. Component එක ඇතුළේ භාවිතා කරන දත්ත වල හැඩය
 interface LineData extends ApiLineData {
   id: string;
 }
@@ -24,18 +24,20 @@ export default function SupervisorDashboard() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // Base URL එක ලබා ගැනීම
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  // අනෙක් සංරචක සමඟ ගැළපීමට NEXT_PUBLIC_API_BASE_URL ලෙස වෙනස් කරන ලදී
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
   useEffect(() => {
     const fetchAllLines = async () => {
       try {
-        const res = await axios.get(`${API_BASE_URL}/api/esp32/lines`);
-        // API response එක Record<string, ApiLineData> ලෙස ලබා ගැනීම
+        const token = localStorage.getItem("token"); // Auth token එකක් අවශ්‍ය නම් ඒකත් එකතු කළා
+        const res = await axios.get(`${API_BASE_URL}/api/esp32/lines`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
         const data = res.data?.data as Record<string, ApiLineData>;
 
         if (data) {
-          // දැන් TypeScript error එකක් එන්නේ නැහැ
           const linesArray: LineData[] = Object.entries(data).map(([key, value]) => ({
             ...value,
             id: key,
@@ -52,7 +54,7 @@ export default function SupervisorDashboard() {
 
     fetchAllLines();
 
-    // දත්ත ස්වයංක්‍රීයව යාවත්කාලීන වීම සඳහා (තත්පර 30කට වරක්)
+    // තත්පර 30කට වරක් දත්ත ස්වයංක්‍රීයව යාවත්කාලීන කිරීම
     const interval = setInterval(fetchAllLines, 30000);
     return () => clearInterval(interval);
   }, [API_BASE_URL]);
@@ -72,7 +74,12 @@ export default function SupervisorDashboard() {
 
         <div className="flex flex-wrap justify-items-start gap-2">
           {lines.map((line) => (
-            <div key={line.id} onClick={() => router.push(`/Supervisor/${line.id}`)} className="cursor-pointer transition-transform hover:scale-105">
+            <div
+              key={line.id}
+              // URL එකේ spaces තිබුනොත් ඒවා %20 ලෙස නිවැරදිව encode කිරීමට encodeURIComponent භාවිතා කරන ලදී
+              onClick={() => router.push(`/Supervisor/${encodeURIComponent(line.id)}`)}
+              className="cursor-pointer transition-transform hover:scale-105"
+            >
               <LineCard
                 line={line.id}
                 product={line.productCode || "N/A"}

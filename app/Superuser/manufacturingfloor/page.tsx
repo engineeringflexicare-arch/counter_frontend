@@ -7,7 +7,7 @@ import ProductionTable from "@/app/components/ProductionTable";
 import ProductionGapChart from "@/app/components/ProductionGapChart";
 import CumulativeChart from "@/app/components/CumulativeChart";
 import LineOverviewCard from "@/app/components/LineOverviewCard";
-import LineCard from "@/app/components/Linecard"; // ඔයාගේ LineCard component එකේ නිවැරදි path එක දෙන්න
+import LineCard from "@/app/components/Linecard";
 
 // දත්ත වල හැඩය (Interface)
 interface LineData {
@@ -34,30 +34,30 @@ export default function AssemblyFloorPage() {
   const [loading, setLoading] = useState(true);
   const [selectedLine, setSelectedLine] = useState<LineData | null>(null);
   const [cumulativeChartData, setCumulativeChartData] = useState<{ time: string; cumulative: number }[]>([]);
-  const [floorTotalOutput, setFloorTotalOutput] = useState(0); // තෝරාගත් දිනයට සියලුම Line වල මුළු products ගණන
+  const [floorTotalOutput, setFloorTotalOutput] = useState(0);
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  // නිවැරදි කළ නම: NEXT_PUBLIC_API_BASE_URL
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
   const FLOOR_NAME = "Manufacturing_Floor";
 
   interface LineApiResponse {
-    [key: string]: LineData; // Firebase data එකේ හැටියට dynamic key එකක් සහිත object එකක්
+    [key: string]: LineData;
   }
 
-  // 1. Assembly Floor එකට අදාළ Lines ලබා ගැනීම
+  // 1. Manufacturing Floor එකට අදාළ Lines ලබා ගැනීම
   useEffect(() => {
     const fetchLines = async () => {
       try {
         setLoading(true);
         const res = await axios.get(`${API_BASE_URL}/api/esp32/lines`);
 
-        // මෙතන any වෙනුවට අලුත් interface එක පාවිච්චි කරන්න
         const data = res.data?.data as LineApiResponse;
 
         if (data) {
           const linesArray: LineData[] = Object.entries(data)
             .map(([key, value]) => ({
               ...value,
-              id: key, // Firebase key එක id විදිහට පාවිච්චි කරනවා (value එකේ id එක overwrite කරනවා)
+              id: key,
             }))
             .filter((line) => line.floor === FLOOR_NAME || !line.floor);
 
@@ -71,7 +71,7 @@ export default function AssemblyFloorPage() {
     };
 
     fetchLines();
-    const interval = setInterval(fetchLines, 30000); // තත්පර 30කට වරක් යාවත්කාලීන වීම
+    const interval = setInterval(fetchLines, 30000);
     return () => clearInterval(interval);
   }, [API_BASE_URL]);
 
@@ -104,7 +104,7 @@ export default function AssemblyFloorPage() {
     return () => clearInterval(interval);
   }, [selectedLine, selectedDate, API_BASE_URL]);
 
-  // 3. තෝරාගත් දිනයට සියලුම Line වල මුළු output ගණන (Floor එකේ Total Products) ලබා ගැනීම
+  // 3. තෝරාගත් දිනයට සියලුම Line වල මුළු output ගණන ලබා ගැනීම
   useEffect(() => {
     const machineIds = lines.map((l) => l.machineId).filter((id): id is string => Boolean(id));
 
@@ -139,10 +139,10 @@ export default function AssemblyFloorPage() {
     };
   }, [lines, selectedDate, API_BASE_URL]);
 
-  // Floor එක සඳහා සමස්ත (aggregate) සංඛ්‍යාලේඛන ගණනය කිරීම
+  // Floor එක සඳහා සමස්ත සංඛ්‍යාලේඛන ගණනය කිරීම
   const totalLines = lines.length;
   const activeMachines = lines.filter((l) => l.machineId).length;
-  const totalProducts = floorTotalOutput; // තෝරාගත් දිනයට සියලුම Line වල සැබෑ output එකතුව
+  const totalProducts = floorTotalOutput;
   const totalTarget = lines.reduce((sum, l) => sum + (l.dailyTarget || 0), 0);
   const overallProgress = totalTarget > 0 ? ((totalProducts / totalTarget) * 100).toFixed(1) : "0.0";
 
@@ -163,7 +163,8 @@ export default function AssemblyFloorPage() {
             <Factory className="h-7 w-7 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-white">Assembly Floor</h1>
+            {/* මාතෘකාව Manufacturing Floor ලෙස නිවැරදි කර ඇත */}
+            <h1 className="text-2xl font-extrabold text-white">Manufacturing Floor</h1>
             <p className="text-slate-300 text-sm mt-0.5">Real-time production overview · select a line for details</p>
           </div>
         </div>
@@ -208,14 +209,7 @@ export default function AssemblyFloorPage() {
                 selectedLine?.id === line.id ? "ring-2 ring-blue-500 rounded-xl shadow-md" : "opacity-90 hover:opacity-100"
               }`}
             >
-              {/* LineCard එකට අවශ්‍ය Props ලබා දීම */}
-              <LineCard
-                line={line.id}
-                product={line.productCode || "N/A"}
-                machine={line.machineId || "No Machine"}
-                target={line.dailyTarget || 0}
-                current={line.totalProductCount || 0} // මෙතනට Live count එක එන prop එක දෙන්න
-              />
+              <LineCard line={line.id} product={line.productCode || "N/A"} machine={line.machineId || "No Machine"} target={line.dailyTarget || 0} current={line.totalProductCount || 0} />
             </div>
           ))}
         </div>
@@ -235,16 +229,9 @@ export default function AssemblyFloorPage() {
           </div>
 
           <div className="flex flex-col gap-6">
-            {/* KPI Overview Card */}
             <LineOverviewCard lineId={selectedLine.id} />
-
-            {/* Cumulative Chart */}
             <CumulativeChart machineId={selectedLine.machineId || ""} cumulativeData={cumulativeChartData} daily={selectedLine.dailyTarget || 0} />
-
-            {/* Gap Analysis Chart */}
             <ProductionGapChart lineId={selectedLine.id} date={selectedDate} />
-
-            {/* Production Table (තෝරාගත් Line එකට පමණක්) */}
             <ProductionTable floor={FLOOR_NAME} lineId={selectedLine.id} date={selectedDate} />
           </div>
         </div>
