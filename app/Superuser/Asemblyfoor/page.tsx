@@ -123,7 +123,7 @@ export default function AssemblyFloorPage() {
             } catch {
               return 0;
             }
-          })
+          }),
         );
         if (isMounted) setFloorTotalOutput(results.reduce((sum, n) => sum + n, 0));
       } catch (error) {
@@ -199,7 +199,7 @@ export default function AssemblyFloorPage() {
       ) : lines.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm p-6 text-center text-slate-500 border border-slate-200 mb-8">No lines assigned to the Assembly Floor.</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        <div className="flex flex-wrap justify-items-start gap-4 mb-8">
           {lines.map((line) => (
             <div
               key={line.id}

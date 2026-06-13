@@ -4,7 +4,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Factory, ClipboardList, Wrench, LogOut, Menu, X, Bell } from "lucide-react";
+import { LayoutDashboard, Factory, ClipboardList, LogOut, Menu, X } from "lucide-react";
+import NotificationDropdown from "../components/NotificationDropdown";
 
 export default function SupervisorLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -49,14 +50,9 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
       icon: Factory,
     },
     {
-      name: "Line Changes",
-      href: "/Supervisor/line-changes",
+      name: "Lines Update",
+      href: "/Supervisor/line_update",
       icon: ClipboardList,
-    },
-    {
-      name: "Maintenance",
-      href: "/Supervisor/maintenance",
-      icon: Wrench,
     },
   ];
 
@@ -188,21 +184,16 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
 
           <div className="flex items-center gap-4">
             {/* Date & Time */}
-            <div className="hidden lg:flex flex-col items-center bg-slate-50 px-4 py-2 rounded-xl border border-slate-50">
+            <div className="hidden lg:flex flex-col items-center bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
               <span className="text-sm font-bold text-slate-800">{currentTime}</span>
             </div>
 
-            {/* Notification */}
-            <button className="relative p-2 rounded-lg hover:bg-slate-100">
-              <Bell size={20} />
-
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
+            {/* Notification - මෙතන Dropdown එක හරි විදිහට ඇතුළත් කර ඇත */}
+            <NotificationDropdown />
 
             {/* User */}
             <div className="hidden md:block text-right">
               <p className="text-sm font-semibold text-slate-700">Supervisor</p>
-
               <p className="text-xs text-slate-500">Production Department</p>
             </div>
 
@@ -210,7 +201,6 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
             <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">S</div>
           </div>
         </header>
-
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-5">{children}</main>
       </div>
