@@ -39,7 +39,9 @@ export default function SupervisorLineUpdatePanel() {
       try {
         setInitialLoading(true);
         const token = localStorage.getItem("token");
-        const response = await axios.get("http://localhost:3000/api/esp32/lines", {
+
+        // අලුත් ක්‍රමය: .env ෆයිල් එකෙන් API URL එක ලබා ගනී
+        const response = await axios.get(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/esp32/lines`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -67,8 +69,9 @@ export default function SupervisorLineUpdatePanel() {
       setLoading(true);
       const token = localStorage.getItem("token");
 
+      // අලුත් ක්‍රමය: .env ෆයිල් එකෙන් API URL එක ලබා ගනී
       await axios.put(
-        "http://localhost:3000/api/esp32/update-line",
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/esp32/update-line`,
         {
           lineId: selectedLine,
           machineId,
@@ -84,9 +87,15 @@ export default function SupervisorLineUpdatePanel() {
 
       setMessage("✓ Line details updated successfully!");
       setTimeout(() => setMessage(""), 3000);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
-      setMessage(error.response?.data?.message || "Failed to update details.");
+    } catch (error: unknown) {
+      // Axios error එකක්ද කියලා පරීක්ෂා කිරීම
+      if (axios.isAxiosError(error)) {
+        setMessage(error.response?.data?.message || "Failed to update details.");
+      } else if (error instanceof Error) {
+        setMessage(error.message);
+      } else {
+        setMessage("Failed to update details.");
+      }
     } finally {
       setLoading(false);
     }

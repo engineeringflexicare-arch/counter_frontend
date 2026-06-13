@@ -31,7 +31,13 @@ export default function LineAssignmentRemovePanel() {
       setFetching(true);
       setMessage("");
 
-      const response = await axios.get("http://localhost:3000/api/esp32/lines");
+      const token = localStorage.getItem("token");
+
+      // .env එක හරහා API URL එක ලබා ගැනීම සහ Token යැවීම
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/esp32/lines`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
       if (response.data.success && response.data.data) {
         setLines(response.data.data);
       } else {
@@ -70,9 +76,16 @@ export default function LineAssignmentRemovePanel() {
       setLoading(true);
       setMessage("");
 
-      const response = await axios.post("http://localhost:3000/api/esp32/remove-assignment", {
-        lineId: selectedLine,
-      });
+      const token = localStorage.getItem("token");
+
+      // .env එක හරහා API URL එක ලබා ගැනීම සහ Token යැවීම
+      const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/esp32/remove-assignment`,
+        {
+          lineId: selectedLine,
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
 
       if (!response.data?.success) {
         setMessage("Remove failed. Please try again.");
@@ -87,9 +100,15 @@ export default function LineAssignmentRemovePanel() {
       setTimeout(() => {
         setMessage("");
       }, 3000);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(error);
-      setMessage("Remove failed. Please try again.");
+
+      // Axios error එකක් නම් අදාළ දෝෂ පණිවිඩය පෙන්වීම
+      if (axios.isAxiosError(error)) {
+        setMessage(error.response?.data?.message || "Remove failed. Please try again.");
+      } else {
+        setMessage("Remove failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
