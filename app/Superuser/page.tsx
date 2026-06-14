@@ -183,14 +183,14 @@ export default function SuperuserDashboard() {
     <div className="min-h-screen bg-neutral-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header Banner */}
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl bg-linear-to-r from-slate-900 to-slate-700 p-6 shadow-md">
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl bg-linear-to-r from-slate-900 to-slate-700 p-4 shadow-md">
           <div className="flex items-center gap-3">
             <div className="rounded-xl bg-white/10 p-3">
               <Factory className="h-7 w-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-extrabold text-white">Production Control Center</h1>
-              <p className="text-slate-300 text-sm mt-0.5">Live overview across all floors and lines</p>
+              <h1 className="text-sm font-extrabold text-white">Production Control Center</h1>
+              <p className="text-slate-300 text-xs mt-0.5">Live overview across all floors and lines</p>
             </div>
           </div>
           <div className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2">
@@ -210,8 +210,8 @@ export default function SuperuserDashboard() {
                 <stat.icon className="h-6 w-6" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-medium text-slate-500 truncate">{stat.label}</p>
-                <p className="text-xl font-bold text-slate-800">{stat.value}</p>
+                <p className="text-[10px] lg:text-xs font-medium text-slate-500 truncate">{stat.label}</p>
+                <p className="text-[12px] lg:text-xl font-bold text-slate-800">{stat.value}</p>
               </div>
             </div>
           ))}

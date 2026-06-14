@@ -82,10 +82,10 @@ export default function CumulativeChart({ machineId, cumulativeData, daily, date
         </div>
 
         <div className="flex items-center gap-2">
-          {machineId && <span className="text-[10px] font-bold text-slate-600 tracking-widest uppercase bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">{machineId}</span>}
+          {machineId && <span className="text-[8px] lg:text-[10px] font-bold text-slate-600 tracking-widest uppercase bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">{machineId}</span>}
 
           {daily > 0 && (
-            <span className="text-[10px] font-bold text-violet-600 tracking-widest flex items-center gap-1.5 border border-violet-200 bg-violet-50 px-2.5 py-1 rounded-lg">
+            <span className="text-[8px] lg:text-[10px] font-bold text-violet-600 tracking-widest flex items-center gap-1.5 border border-violet-200 bg-violet-50 px-2.5 py-1 rounded-lg">
               <span className="w-4 h-0.5 bg-violet-500 inline-block rounded-full" />
               Daily Target
             </span>
@@ -94,25 +94,25 @@ export default function CumulativeChart({ machineId, cumulativeData, daily, date
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-6">
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
           <p className="text-[10px] uppercase text-slate-500 font-bold">Current Output</p>
-          <p className="text-2xl font-black text-indigo-600">{currentOutput}</p>
+          <p className="text-[10px]lg:text-2xl font-black text-indigo-600">{currentOutput}</p>
         </div>
 
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
           <p className="text-[10px] uppercase text-slate-500 font-bold">Daily Target</p>
-          <p className="text-2xl font-black text-violet-600">{daily}</p>
+          <p className="text-[10px] lg:text-2xl font-black text-violet-600">{daily}</p>
         </div>
 
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
           <p className="text-[10px] uppercase text-slate-500 font-bold">Remaining</p>
-          <p className="text-2xl font-black text-amber-600">{remaining}</p>
+          <p className="text-[10px] lg:text-2xl font-black text-amber-600">{remaining}</p>
         </div>
 
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-          <p className="text-[10px] uppercase text-slate-500 font-bold">Progress</p>
-          <p className="text-2xl font-black text-emerald-600">{completionPercentage}%</p>
+          <p className="text-[10px] lg:text-[10px] uppercase text-slate-500 font-bold">Progress</p>
+          <p className="text-[10px] lg:text-2xl font-black text-emerald-600">{completionPercentage}%</p>
         </div>
       </div>
 

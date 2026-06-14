@@ -1,33 +1,44 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Factory, LogOut, Menu, X, Bell } from "lucide-react";
-import Image from "next/image";
+import { LayoutDashboard, Factory, LogOut, Menu, X } from "lucide-react";
+import NotificationDropdown from "../components/NotificationDropdown";
+import { BiLayer } from "react-icons/bi";
+import { RiMenuFold2Line } from "react-icons/ri";
 
-export default function SuperuserLayout({ children }: { children: React.ReactNode }) {
+export default function SupervisorLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [currentTime, setCurrentTime] = useState("");
+  const [userName, setUserName] = useState("User");
 
   useEffect(() => {
+    // LocalStorage එකෙන් දත්ත ගැනීම
+    const storedUser = localStorage.getItem("userName");
+    if (storedUser) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setUserName(storedUser);
+    }
+
     const updateTime = () => {
       const now = new Date();
 
-      setCurrentTime(
-        now.toLocaleString("en-GB", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: true,
-        }),
-      );
+      const formatted = now.toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      });
+
+      setCurrentTime(formatted);
     };
 
     updateTime();
@@ -44,9 +55,9 @@ export default function SuperuserLayout({ children }: { children: React.ReactNod
       icon: LayoutDashboard,
     },
     {
-      name: "Asembly Foor",
+      name: "Assembly Floor",
       href: "/Superuser/Asemblyfoor",
-      icon: Factory,
+      icon: BiLayer,
     },
     {
       name: "Manufacturing Floor",
@@ -57,12 +68,13 @@ export default function SuperuserLayout({ children }: { children: React.ReactNod
 
   const handleLogout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("userName");
     window.location.href = "/";
   };
 
   return (
     <div className="flex min-h-screen bg-slate-100">
-      {/* Overlay */}
+      {/* Mobile Overlay */}
       {sidebarOpen && <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
       {/* Sidebar */}
@@ -77,30 +89,32 @@ export default function SuperuserLayout({ children }: { children: React.ReactNod
           to-slate-950
           text-white
           flex flex-col
-          transition-all duration-300
-
+          transition-all duration-300 ease-in-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         `}
       >
         {/* Logo */}
-        <div className="p-5 border-b border-slate-800 flex items-center justify-between">
-          {!collapsed ? (
-            <div>
-              <h1 className="text-xl font-black">Flexicare Dashboard</h1>
+        <div className="p-3 border-b  border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Image src="/logo.png" alt="Flexicare" width={45} height={45} className="rounded-full  border-slate-50 p-1 border-2 " />
 
-              <p className="text-xs text-slate-400 mt-1">Production Monitoring</p>
-            </div>
-          ) : (
-            <div className="mx-auto text-2xl font-black">F</div>
-          )}
+            {!collapsed && (
+              <div>
+                <h1 className="text-lg font-black">flexicare</h1>
+                <p className="text-xs text-slate-400">Production Dashboard</p>
+              </div>
+            )}
+          </div>
 
           <div className="flex items-center gap-2">
+            {/* Desktop Toggle */}
             <button onClick={() => setCollapsed(!collapsed)} className="hidden lg:flex p-2 rounded-lg hover:bg-slate-800">
-              <Menu size={20} />
+              <Menu size={18} />
             </button>
 
-            <button className="lg:hidden p-2 rounded-lg hover:bg-slate-800" onClick={() => setSidebarOpen(false)}>
-              <X size={20} />
+            {/* Mobile Close (Inside Sidebar) */}
+            <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 rounded-lg hover:bg-slate-800 transition-colors">
+              <X size={18} />
             </button>
           </div>
         </div>
@@ -109,7 +123,6 @@ export default function SuperuserLayout({ children }: { children: React.ReactNod
         <nav className="flex-1 p-3 space-y-2">
           {menuItems.map((item) => {
             const Icon = item.icon;
-
             const active = pathname === item.href;
 
             return (
@@ -122,12 +135,10 @@ export default function SuperuserLayout({ children }: { children: React.ReactNod
                   ${collapsed ? "justify-center" : "gap-3"}
                   px-4 py-3 rounded-xl
                   transition-all duration-200
-
                   ${active ? "bg-blue-600 text-white shadow-lg" : "text-slate-300 hover:bg-slate-800"}
                 `}
               >
                 <Icon size={20} />
-
                 {!collapsed && <span className="font-medium">{item.name}</span>}
               </Link>
             );
@@ -139,8 +150,7 @@ export default function SuperuserLayout({ children }: { children: React.ReactNod
           {!collapsed && (
             <div className="bg-slate-800 rounded-xl p-4 mb-3">
               <p className="text-xs text-slate-400">Logged in as</p>
-
-              <p className="font-bold text-lg">Superuser</p>
+              <p className="font-bold text-lg">{userName}</p>
             </div>
           )}
 
@@ -154,60 +164,54 @@ export default function SuperuserLayout({ children }: { children: React.ReactNod
               hover:bg-red-700
               rounded-xl
               py-3
-              font-semibold
               transition-all
+              font-semibold
             `}
           >
             <LogOut size={18} />
-
             {!collapsed && "Logout"}
           </button>
         </div>
       </aside>
 
-      {/* Main Section */}
+      {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <header className="h-16 bg-white border-b border-slate-200 shadow-sm flex items-center justify-between px-6 sticky top-0 z-30">
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 rounded-lg hover:bg-slate-100">
-              <Menu size={22} />
+            {/* Mobile Menu Toggle Button (Updated) */}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="lg:hidden flex items-center justify-center p-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-blue-100 hover:text-blue-600 transition-all duration-300 ease-in-out"
+              aria-label="Toggle Sidebar"
+            >
+              {sidebarOpen ? <X size={22} className="animate-in fade-in zoom-in duration-200" /> : <RiMenuFold2Line size={22} className="animate-in fade-in zoom-in duration-200" />}
             </button>
 
-            <div className="flex items-center justify-center gap-4 mb-1">
-              {/* මෙතන තමයි වෙනස් කළේ 👇 */}
-              <Image src="/logo.png" alt="Flexicare Lanka" width={40} height={40} style={{ width: "auto", height: "40px" }} priority />
-
-              <h1 className="text-xl font-extrabold text-gray-900">flexicare Lanka Production Dashboard</h1>
-            </div>
+            <h1 className="text-sm md:text-xl font-bold text-slate-800">flexicare Production Monitoring System</h1>
           </div>
 
           <div className="flex items-center gap-4">
             {/* Date & Time */}
-            <div className="hidden lg:flex flex-col items-center bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">
+            <div className="hidden lg:flex flex-col items-center bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
               <span className="text-sm font-bold text-slate-800">{currentTime}</span>
             </div>
 
             {/* Notification */}
-            <button className="relative p-2 rounded-lg hover:bg-slate-100">
-              <Bell size={20} />
+            <NotificationDropdown />
 
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
-
-            {/* User */}
+            {/* User Info */}
             <div className="hidden md:block text-right">
-              <p className="text-sm font-semibold text-slate-700">Superuser</p>
-
+              <p className="text-sm font-semibold text-slate-700">{userName}</p>
               <p className="text-xs text-slate-500">Production Department</p>
             </div>
 
             {/* Avatar */}
-            <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">S</div>
+            <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">{userName.charAt(0).toUpperCase()}</div>
           </div>
         </header>
 
-        {/* Content */}
+        {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-5">{children}</main>
       </div>
     </div>

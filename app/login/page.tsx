@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
 
   const router = useRouter();
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,7 +21,7 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const response = await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/users/login`, {
+      const response = await axios.post(`${API_BASE_URL}/api/users/login`, {
         EmployeeNumber: employeeNumber,
         Password: password,
       });

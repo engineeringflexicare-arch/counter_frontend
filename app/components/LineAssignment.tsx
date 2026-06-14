@@ -48,7 +48,7 @@ export default function LineAssignmentPanel() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [message, setMessage] = useState("");
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
   // --- Fetch Data From Backend API ---
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -95,7 +95,7 @@ export default function LineAssignmentPanel() {
       setLoading(true);
 
       // Backend එකට දත්ත යැවීම
-      await axios.post("http://localhost:3000/api/esp32/assign-line", {
+      await axios.post(`${API_BASE_URL}/api/esp32/assign-line`, {
         lineId: selectedLine,
         machineId: selectedMachine,
         productCode,
@@ -111,7 +111,7 @@ export default function LineAssignmentPanel() {
       setMessage("✓ Assignment saved successfully");
 
       // දත්ත Save කළ පසු, අලුත් දත්ත නැවත Backend එකෙන් ලබාගැනීම (Refresh)
-      const linesResponse = await axios.get("http://localhost:3000/api/esp32/lines");
+      const linesResponse = await axios.get(`${API_BASE_URL}/api/esp32/lines`);
       if (linesResponse.data.success && linesResponse.data.data) {
         setLines(linesResponse.data.data);
       }
