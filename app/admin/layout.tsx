@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Factory, Settings, LogOut, Menu, Bell } from "lucide-react";
+import { LayoutDashboard, Users, Settings, LogOut, Menu, Bell } from "lucide-react";
 import Image from "next/image";
+import { MdOutlineAccountTree, MdOutlinePrecisionManufacturing } from "react-icons/md";
+import { BiLayer } from "react-icons/bi";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -42,13 +44,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     },
     {
       name: "Users",
-      href: "/admin/users",
+      href: "/Admin/Users",
       icon: Users,
     },
     {
-      name: "Factories",
+      name: "Assembly Floor",
+      href: "/admin/assembly-floor",
+      icon: BiLayer,
+    },
+    {
+      name: "Manufacturing Floor",
+      href: "/admin/manufacturing-floor",
+      icon: MdOutlinePrecisionManufacturing,
+    },
+    {
+      name: "Counters",
       href: "/admin/factories",
-      icon: Factory,
+      icon: MdOutlineAccountTree,
     },
     {
       name: "Settings",
@@ -125,10 +137,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <header className="h-16 bg-white border-b flex items-center justify-between px-6">
           <div className="flex items-center gap-4">
             <Image src="/logo.png" alt="Flexicare" width={40} height={40} />
-            <h1 className="font-bold text-xl">Admin Dashboard</h1>
+            <h1 className="font-bold text-xl text-slate-900">Admin Dashboard</h1>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 text-slate-600">
             <span>{currentTime}</span>
 
             <button>

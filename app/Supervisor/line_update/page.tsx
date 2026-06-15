@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Save, Cpu, Package, Target, Users, SunMoon, Building, Calendar, Settings } from "lucide-react";
+import { Save, Cpu, Package, Target, Users, SunMoon, Building, Calendar, Settings, Clock } from "lucide-react";
 import axios from "axios";
 
 interface LineData {
@@ -13,6 +13,8 @@ interface LineData {
   shift?: string;
   supervisor?: string;
   floor?: string;
+  shiftStartTime?: string;
+  shiftEndTime?: string;
 }
 
 interface MachineData {
@@ -29,20 +31,22 @@ export default function SupervisorLineUpdatePanel() {
   const today = new Date().toISOString().split("T")[0];
   const [selectedDate, setSelectedDate] = useState(today);
 
+  // States
   const [machineId, setMachineId] = useState("");
   const [productCode, setProductCode] = useState("");
   const [dailyTarget, setDailyTarget] = useState("");
   const [hourlyTarget, setHourlyTarget] = useState("");
   const [teamMembers, setTeamMembers] = useState("");
   const [shift, setShift] = useState("Day");
-
   const [floor, setFloor] = useState("Production_Floor");
+  const [dailyProduction, setDailyProduction] = useState("");
+  const [startTime, setStartTime] = useState("08:00");
+  const [endTime, setEndTime] = useState("16:00");
 
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [message, setMessage] = useState("");
 
-  // නිවැරදි කළ .env නම භාවිතය
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
   useEffect(() => {
@@ -98,6 +102,9 @@ export default function SupervisorLineUpdatePanel() {
           teamMembers: Number(teamMembers),
           shift,
           floor,
+          shiftStartTime: startTime,
+          shiftEndTime: endTime,
+          // dailyProduction අවශ්‍ය නම් මෙතනින් යවන්න පුළුවන්
         },
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -200,6 +207,8 @@ export default function SupervisorLineUpdatePanel() {
                     setHourlyTarget(String(lineData.hourlyTarget || ""));
                     setTeamMembers(String(lineData.plannedMembers || ""));
                     setShift(lineData.shift || "Day");
+                    setStartTime(lineData.shiftStartTime || "08:00");
+                    setEndTime(lineData.shiftEndTime || "16:00");
                   }
                 }}
                 className="w-full border border-slate-300 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 bg-blue-50 font-medium transition-all"
@@ -213,15 +222,15 @@ export default function SupervisorLineUpdatePanel() {
               </select>
             </div>
 
+            {/* අඩුවී තිබූ Input Fields යළි එකතු කර ඇත */}
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
-                <Cpu size={16} className="text-slate-500" />
-                Machine ID
+                <Cpu size={16} className="text-slate-500" /> Machine ID
               </label>
               <select
                 value={machineId}
                 onChange={(e) => setMachineId(e.target.value)}
-                className="w-full border border-slate-300 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 transition-all"
+                className="w-full border border-slate-300 rounded-2xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
               >
                 <option value="">-- No Machine --</option>
                 {machineId && !freeMachines.find((m) => m.machineId === machineId) && <option value={machineId}>{machineId} (Current)</option>}
@@ -235,8 +244,7 @@ export default function SupervisorLineUpdatePanel() {
 
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
-                <Package size={16} className="text-slate-500" />
-                Product Code
+                <Package size={16} className="text-slate-500" /> Product Code
               </label>
               <input
                 type="text"
@@ -249,8 +257,7 @@ export default function SupervisorLineUpdatePanel() {
 
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
-                <SunMoon size={16} className="text-slate-500" />
-                Shift
+                <SunMoon size={16} className="text-slate-500" /> Shift
               </label>
               <select
                 value={shift}
@@ -264,8 +271,7 @@ export default function SupervisorLineUpdatePanel() {
 
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
-                <Users size={16} className="text-slate-500" />
-                Team Members
+                <Users size={16} className="text-slate-500" /> Team Members
               </label>
               <input
                 type="number"
@@ -277,8 +283,7 @@ export default function SupervisorLineUpdatePanel() {
 
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
-                <Target size={16} className="text-slate-500" />
-                Daily Target
+                <Target size={16} className="text-slate-500" /> Daily Target
               </label>
               <input
                 type="number"
@@ -290,13 +295,49 @@ export default function SupervisorLineUpdatePanel() {
 
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
-                <Target size={16} className="text-slate-500" />
-                Hourly Target
+                <Target size={16} className="text-slate-500" /> Hourly Target
               </label>
               <input
                 type="number"
                 value={hourlyTarget}
                 onChange={(e) => setHourlyTarget(e.target.value)}
+                className="w-full border border-slate-300 rounded-2xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+                <Target size={16} className="text-slate-500" /> Total Production
+              </label>
+              <input
+                type="number"
+                value={dailyProduction}
+                onChange={(e) => setDailyProduction(e.target.value)}
+                className="w-full border border-slate-300 rounded-2xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              />
+            </div>
+
+            {/* <Label> වෙනුවට <label> භාවිතා කර ඇත */}
+            <div>
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+                <Clock size={16} className="text-slate-500" /> Start Time
+              </label>
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="w-full border border-slate-300 rounded-2xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+                <Clock size={16} className="text-slate-500" /> End Time
+              </label>
+              <input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
                 className="w-full border border-slate-300 rounded-2xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
               />
             </div>

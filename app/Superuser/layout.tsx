@@ -8,6 +8,7 @@ import { LayoutDashboard, Factory, LogOut, Menu, X } from "lucide-react";
 import NotificationDropdown from "../components/NotificationDropdown";
 import { BiLayer } from "react-icons/bi";
 import { RiMenuFold2Line } from "react-icons/ri";
+import { FaUserPlus } from "react-icons/fa";
 
 export default function SupervisorLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -63,6 +64,11 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
       name: "Manufacturing Floor",
       href: "/Superuser/Manufacturingfloor",
       icon: Factory,
+    },
+    {
+      name: "User Management",
+      href: "/Superuser/Usermanagement",
+      icon: FaUserPlus,
     },
   ];
 

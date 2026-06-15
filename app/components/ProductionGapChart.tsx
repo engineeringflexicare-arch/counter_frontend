@@ -152,7 +152,7 @@ export default function ProductionGapChart({ lineId, date }: ProductionGapChartP
           <p className="text-slate-500 font-medium">No Production Gap Data Available for this Line</p>
         </div>
       ) : (
-        <div className="w-full min-w-0 h-75">
+        <div className="w-full min-w-0 h-64">
           <ResponsiveContainer height="100%" width="100%">
             <LineChart data={chartData} margin={{ top: 20, right: 20, bottom: 20, left: 10 }}>
               <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
