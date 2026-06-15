@@ -22,9 +22,8 @@ export default function LoginPage() {
 
     try {
       const response = await axios.post(`${API_BASE_URL}/api/users/login`, {
-        // Backend එක බලාපොරොත්තු වෙන විදිහටම keys දෙන්න
-        EmployeeNumber: employeeNumber,
-        password: password, // <-- මෙතන Simple 'p' වෙන්න ඕනේ
+        EmployeeNumber: employeeNumber, // මෙය Backend එකේ 'EmployeeNumber' ට සමාන විය යුතුයි
+        password: password,
       });
 
       const { token, role, name } = response.data;
