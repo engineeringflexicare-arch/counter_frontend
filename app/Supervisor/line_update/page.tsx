@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Save, Cpu, Package, Target, Users, SunMoon, Building, Calendar, Settings, Clock } from "lucide-react";
 import axios from "axios";
 
+// 1. අලුත් Interface එක
 interface LineData {
   machineId?: string;
   productCode?: string;
@@ -15,6 +16,8 @@ interface LineData {
   floor?: string;
   shiftStartTime?: string;
   shiftEndTime?: string;
+  plannedDate?: string;
+  totalProductCount?: number;
 }
 
 interface MachineData {
@@ -80,6 +83,7 @@ export default function SupervisorLineUpdatePanel() {
     fetchData();
   }, [API_BASE_URL]);
 
+  // 2. අලුත් handleUpdate Function එක
   const handleUpdate = async () => {
     if (!selectedLine) {
       setMessage("Please select a line to update.");
@@ -90,34 +94,47 @@ export default function SupervisorLineUpdatePanel() {
       setLoading(true);
       const token = localStorage.getItem("token");
 
-      await axios.put(
-        `${API_BASE_URL}/api/esp32/update-line`,
-        {
-          lineId: selectedLine,
-          date: selectedDate,
-          machineId,
-          productCode,
-          dailyTarget: Number(dailyTarget),
-          hourlyTarget: Number(hourlyTarget),
-          teamMembers: Number(teamMembers),
-          shift,
-          floor,
-          shiftStartTime: startTime,
-          shiftEndTime: endTime,
-          // dailyProduction අවශ්‍ය නම් මෙතනින් යවන්න පුළුවන්
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      // Payload එක වෙනම හදාගැනීම
+      const payload = {
+        lineId: selectedLine,
 
-      setMessage("✓ Line details updated successfully!");
-      setTimeout(() => setMessage(""), 3000);
+        // History Date
+        plannedDate: selectedDate,
+
+        // Production Data
+        machineId,
+        productCode,
+        dailyTarget: Number(dailyTarget),
+        hourlyTarget: Number(hourlyTarget),
+        teamMembers: Number(teamMembers),
+
+        // Shift Details
+        shift,
+        floor,
+        shiftStartTime: startTime,
+        shiftEndTime: endTime,
+
+        // Optional
+        totalProductCount: Number(dailyProduction) || 0,
+      };
+
+      const response = await axios.put(`${API_BASE_URL}/api/esp32/lines/update-line`, payload, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.data.success) {
+        setMessage("✓ Line details updated successfully!");
+        setTimeout(() => {
+          setMessage("");
+        }, 3000);
+      }
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
-        setMessage(error.response?.data?.message || "Failed to update details.");
+        setMessage(error.response?.data?.message || "Failed to update line details.");
       } else {
-        setMessage("Failed to update details.");
+        setMessage("Failed to update line details.");
       }
     } finally {
       setLoading(false);
@@ -153,7 +170,9 @@ export default function SupervisorLineUpdatePanel() {
         <>
           {message && (
             <div
-              className={`mb-6 rounded-2xl p-4 border text-sm font-semibold flex items-center gap-2 ${message.includes("✓") ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}
+              className={`mb-6 rounded-2xl p-4 border text-sm font-semibold flex items-center gap-2 ${
+                message.includes("✓") ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"
+              }`}
             >
               {message}
             </div>
@@ -200,6 +219,7 @@ export default function SupervisorLineUpdatePanel() {
                   setSelectedLine(lineKey);
                   const lineData = lines[lineKey];
 
+                  // 3. ඔයා ලබාදුන් අලුත් Update States කොටස
                   if (lineData) {
                     setMachineId(lineData.machineId || "");
                     setProductCode(lineData.productCode || "");
@@ -209,6 +229,11 @@ export default function SupervisorLineUpdatePanel() {
                     setShift(lineData.shift || "Day");
                     setStartTime(lineData.shiftStartTime || "08:00");
                     setEndTime(lineData.shiftEndTime || "16:00");
+                    setDailyProduction(String(lineData.totalProductCount || ""));
+
+                    if (lineData.plannedDate) {
+                      setSelectedDate(lineData.plannedDate);
+                    }
                   }
                 }}
                 className="w-full border border-slate-300 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 bg-blue-50 font-medium transition-all"
@@ -222,7 +247,6 @@ export default function SupervisorLineUpdatePanel() {
               </select>
             </div>
 
-            {/* අඩුවී තිබූ Input Fields යළි එකතු කර ඇත */}
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
                 <Cpu size={16} className="text-slate-500" /> Machine ID
@@ -317,7 +341,6 @@ export default function SupervisorLineUpdatePanel() {
               />
             </div>
 
-            {/* <Label> වෙනුවට <label> භාවිතා කර ඇත */}
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
                 <Clock size={16} className="text-slate-500" /> Start Time

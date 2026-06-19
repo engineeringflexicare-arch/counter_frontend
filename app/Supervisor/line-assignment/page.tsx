@@ -11,6 +11,10 @@ interface MachineData {
   LiveStatus?: { Count?: number };
 }
 
+interface MachineListItem {
+  machineId: string;
+}
+
 interface LineData {
   machineId?: string;
   productCode?: string;
@@ -25,6 +29,15 @@ interface LineData {
 }
 
 const availableLines = ["Line_01", "Line_02", "Line_03", "Line_04", "Line_05", "Line_06", "Line_07", "Line_08"];
+
+// Reads the auth token from localStorage. Safe to call during render
+// because it's only ever used as a lazy initializer for useState, which
+// React only invokes on the client during the first render — never
+// during SSR, and never inside an effect.
+const readStoredToken = (): string | null => {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("token")?.trim() || null;
+};
 
 // ==========================================
 // Main Component
@@ -60,7 +73,26 @@ export default function LineAssignmentPanel() {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const authToken = typeof window !== "undefined" ? localStorage.getItem("token")?.trim() || null : null;
+
+  // Lazy-initialized from localStorage on first client render — no
+  // setState-in-effect needed for the initial read.
+  const [authToken, setAuthToken] = useState<string | null>(readStoredToken);
+
+  // Keep authToken in sync if the token changes in another tab/window
+  // (e.g. login/logout happening elsewhere). This is a legitimate use of
+  // an effect: subscribing to an external system (the storage event),
+  // not synchronously computing state from something already available
+  // during render.
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === "token") {
+        setAuthToken(event.newValue?.trim() || null);
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
 
   const getAuthHeaders = () => {
     return authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
@@ -87,18 +119,17 @@ export default function LineAssignmentPanel() {
         }
 
         // 2. Backend එකෙන් සියලුම දත්ත ලබාගැනීම
-        const allDataResponse = await axios.get("http://localhost:3000/api/esp32/", {
+        const machinesResponse = await axios.get("http://localhost:3000/api/esp32/lines/machines", {
           headers: localAuthHeaders,
         });
-        if (allDataResponse.data.success && allDataResponse.data.data) {
-          const allData = allDataResponse.data.data;
+
+        if (machinesResponse.data.success) {
           const machineData: Record<string, MachineData> = {};
 
-          Object.keys(allData).forEach((key) => {
-            if (key.startsWith("Machine_")) {
-              machineData[key] = allData[key];
-            }
+          machinesResponse.data.data.forEach((item: MachineListItem) => {
+            machineData[item.machineId] = {};
           });
+
           setMachines(machineData);
         }
       } catch (error) {
@@ -111,8 +142,8 @@ export default function LineAssignmentPanel() {
     fetchInitialData();
   }, [authToken]);
 
-  // --- Handle Save Assignment ---
-  const handleSaveAssignment = async () => {
+  // --- Handle Assign Line ---
+  const handleAssignLine = async () => {
     if (!authToken) {
       setMessage("Please login before saving an assignment.");
       return;
@@ -126,42 +157,48 @@ export default function LineAssignmentPanel() {
     try {
       setLoading(true);
 
-      // Backend එකට දත්ත යැවීම
-      await axios.post(
-        "http://localhost:3000/api/esp32/assign-line",
-        {
-          lineId: selectedLine,
-          machineId: selectedMachine,
-          productCode,
-          dailyTarget: Number(dailyTarget),
-          hourlyTarget: Number(hourlyTarget),
-          teamMembers: Number(teamMembers),
-          shift,
-          supervisor,
-          shiftStartTime,
-          shiftEndTime,
-          floor, // <--- Floor එක Backend එකට යැවීම
-        },
-        {
-          headers: getAuthHeaders(),
-        },
-      );
+      const payload = {
+        lineId: selectedLine,
+        machineId: selectedMachine,
+        productCode,
+        dailyTarget: Number(dailyTarget),
+        hourlyTarget: Number(hourlyTarget),
+        teamMembers: Number(teamMembers),
+        shift,
+        supervisor,
+        shiftStartTime,
+        shiftEndTime,
+        floor,
+      };
 
-      setMessage("✓ Assignment saved successfully");
+      console.log("ASSIGN PAYLOAD:", payload);
 
-      // දත්ත Save කළ පසු, අලුත් දත්ත නැවත Backend එකෙන් ලබාගැනීම
-      const linesResponse = await axios.get("http://localhost:3000/api/esp32/lines", {
+      const response = await axios.post("http://localhost:3000/api/esp32/lines/assign", payload, {
         headers: getAuthHeaders(),
-        //headers: localStorage.getItem("token")
       });
-      if (linesResponse.data.success && linesResponse.data.data) {
-        setLines(linesResponse.data.data);
-      }
 
-      setTimeout(() => setMessage(""), 3000);
+      console.log("ASSIGN RESPONSE:", response.data);
+
+      if (response.data.success) {
+        setMessage("✓ Line assigned successfully");
+
+        // දත්ත Save කළ පසු, අලුත් දත්ත නැවත Backend එකෙන් ලබාගැනීම
+        const linesResponse = await axios.get("http://localhost:3000/api/esp32/lines", {
+          headers: getAuthHeaders(),
+        });
+        if (linesResponse.data.success && linesResponse.data.data) {
+          setLines(linesResponse.data.data);
+        }
+
+        setTimeout(() => setMessage(""), 3000);
+      } else {
+        setMessage(response.data.message || "Failed to assign line");
+      }
     } catch (error) {
-      console.error(error);
-      setMessage("Failed to save assignment. Please try again.");
+      const errorMessage = axios.isAxiosError(error) ? error.response?.data?.message || "Failed to assign line" : "Failed to assign line";
+
+      console.error("ASSIGN ERROR:", axios.isAxiosError(error) ? error.response?.data || error : error);
+      setMessage(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -387,7 +424,7 @@ export default function LineAssignmentPanel() {
             {/* Save Button */}
             <div className="mt-8">
               <button
-                onClick={handleSaveAssignment}
+                onClick={handleAssignLine}
                 disabled={loading}
                 className="
                 w-full
