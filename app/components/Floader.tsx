@@ -3,15 +3,15 @@
 import Image from "next/image";
 import React from "react";
 
-export default function CometTailLightLoader() {
+export default function FLoader() {
   // --- ඔබට පහසුවෙන් වෙනස් කළ හැකි අගයන් (Configurable Values) ---
   const numDots = 22; // තිත් ගණන
   const tailSpeed = "2s"; // වටේ යන තිත් වලිගයේ වේගය (තත්පර අඩු කළහොත් වේගය වැඩි වේ)
   const ringSpeed = "3s"; // ඇතුළත Reverse කැරකෙන රවුමේ වේගය
 
   return (
-    // Light background (bg-slate-50) සහ Full screen (min-h-screen w-full)
-    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-50 bg-opacity-30 overflow-hidden">
+    // Fixed position එක සහ blur effect එක එක් කර ඇත (අනෙක් සියලුම දේට උඩින් පෙනීමට z-50 යොදා ඇත)
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-50/80 backdrop-blur-sm overflow-hidden">
       {/* Full screen පෙනුමට ගැලපෙන පරිදි Loader එකේ ප්‍රමාණය (w-64 h-64) මඳක් විශාල කර ඇත */}
       <div className="relative w-64 h-64 flex items-center justify-center">
         {/* 1. වටේට කැරකෙන තිත් වලිගය (Spinning Comet Tail) */}
@@ -27,7 +27,7 @@ export default function CometTailLightLoader() {
             return (
               <div
                 key={i}
-                // Light mode එකට ගැලපෙන ලෙස තද නිල් පැහැයක් (bg-blue-600) ලබා දී ඇත
+                // Light mode එකට ගැලපෙන ලෙස තද නිල් පැහැයක් (bg-blue-900) ලබා දී ඇත
                 className="absolute top-1/2 left-1/2 rounded-full bg-blue-900 shadow-[0_0_8px_rgba(37,99,235,0.6)]"
                 style={{
                   width: `${dotSize}px`,
@@ -64,7 +64,7 @@ export default function CometTailLightLoader() {
 
         {/* Loading Progress Line */}
         <div className="mt-3 w-32 h-0.5 bg-blue-200 rounded-full overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-transparent via-blue-600 to-transparent w-full" style={{ animation: "translate-x 1.5s ease-in-out infinite" }} />
+          <div className="h-full bg-linear-to-r from-transparent via-blue-600 to-transparent w-full" style={{ animation: "translate-x 1.5s ease-in-out infinite" }} />
         </div>
       </div>
 

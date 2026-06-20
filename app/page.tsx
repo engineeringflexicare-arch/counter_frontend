@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 
+// import CometTailLightLoader from "./components/Floader";
+
 export default function Home() {
   redirect("/login");
 
@@ -13,7 +15,7 @@ export default function Home() {
 // export default function Home() {
 //   return (
 //     <main className="flex  flex-col items-center justify-between ">
-//       <CombinedTailwindLoader />
+//       <CometTailLightLoader />
 //     </main>
 //   );
 // }

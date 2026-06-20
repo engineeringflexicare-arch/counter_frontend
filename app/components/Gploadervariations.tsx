@@ -57,7 +57,7 @@ export function MinimalGPLoader() {
 // ==================== VARIATION 2: TECH PROFESSIONAL ====================
 export function TechProfessionalGPLoader() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-950 via-slate-900 to-black flex items-center justify-center overflow-hidden">
+    <div className="min-h-screen bg-linear-to-b from-blue-950 via-slate-900 to-black flex items-center justify-center overflow-hidden">
       <style>{`
         @keyframes techPulse {
           0% { transform: scale(1); opacity: 1; }
@@ -94,7 +94,7 @@ export function TechProfessionalGPLoader() {
           {[...Array(4)].map((_, i) => (
             <div
               key={i}
-              className="w-1 h-10 bg-gradient-to-t from-blue-500 to-blue-300"
+              className="w-1 h-10 bg-linear-to-t from-blue-500 to-blue-300"
               style={{
                 animation: `pulse 1.5s ease-in-out infinite`,
                 animationDelay: `${i * 0.2}s`,
@@ -160,14 +160,14 @@ export function PremiumGlowGPLoader() {
           />
         </div>
 
-        <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-600 mb-2">GP SYSTEMS</h2>
+        <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-linear-to-r from-blue-400 to-blue-600 mb-2">GP SYSTEMS</h2>
         <p className="text-blue-300/70 text-sm tracking-widest mb-8">PROCESSING</p>
 
         <div className="flex justify-center gap-2">
           {[...Array(6)].map((_, i) => (
             <div
               key={i}
-              className="w-2 h-12 rounded-full bg-gradient-to-b from-blue-400 to-blue-600"
+              className="w-2 h-12 rounded-full bg-linear-to-b from-blue-400 to-blue-600"
               style={{
                 animation: `pulse 1.2s ease-in-out infinite`,
                 animationDelay: `${i * 0.1}s`,
@@ -222,7 +222,7 @@ export function SleekModernGPLoader() {
         {/* Indicator */}
         <div className="mt-6 w-32 h-1 bg-blue-900 rounded-full mx-auto overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full"
+            className="h-full bg-linear-to-r from-blue-400 to-blue-600 rounded-full"
             style={{
               animation: `slideProgress 2s ease-in-out infinite`,
             }}
@@ -244,7 +244,7 @@ export function SleekModernGPLoader() {
 // ==================== VARIATION 5: DARK BLUE PREMIUM ====================
 export function DarkBluePremiumGPLoader() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-black flex items-center justify-center overflow-hidden">
+    <div className="min-h-screen bg-linear-to-br from-slate-950 via-blue-950 to-black flex items-center justify-center overflow-hidden">
       <style>{`
         @keyframes darkGlow {
           0%,100% {
@@ -340,7 +340,7 @@ export function AnimatedBGGPLoader() {
         {/* Progress bar */}
         <div className="mt-8 w-48 h-1 bg-blue-950 rounded-full mx-auto overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600"
+            className="h-full bg-linear-to-r from-blue-400 via-blue-500 to-blue-600"
             style={{
               animation: "slideProgress 2.5s ease-in-out infinite",
             }}
@@ -356,7 +356,7 @@ export function AnimatedBGGPLoader() {
 // ==================== DEFAULT LOADER ====================
 export function GPLoaderDefault() {
   return (
-    <div className="min-h-screen relative bg-gradient-to-br from-slate-900 via-blue-950 to-black flex items-center justify-center overflow-hidden">
+    <div className="min-h-screen relative bg-linear-to-br from-slate-900 via-blue-950 to-black flex items-center justify-center overflow-hidden">
       <style>{`
         @keyframes float {
           0%,100% { transform: translateY(0px); }

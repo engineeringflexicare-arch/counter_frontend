@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { FileSpreadsheet, FileText, FileDown, Loader2 } from "lucide-react";
+// FileDown kept for PDF export button
+
+// ── Types (unchanged) ─────────────────────────────────────────────────────────
 
 interface ProductionTableProps {
   floor?: string;
@@ -48,60 +52,47 @@ interface ApiRunItem {
   startTime?: string;
   endTime?: string;
   totalOutput: number;
-  // Per-run hourly breakdown returned by the backend. Each run carries
-  // its OWN hourlyData array (zeros outside the hours it touched), which
-  // must be used instead of the day-level aggregate so each run's row
-  // shows only its own production, not every run repeating the same
-  // combined whole-day numbers.
   hourlyData?: ApiHourlyItem[];
 }
 
-// 🔥 අලුත් generateShiftHours Function එක
+// ── Helpers (unchanged logic) ──────────────────────────────────────────────────
+
 const generateShiftHours = (startTime: string, endTime: string): string[] => {
   const hours: string[] = [];
-
   const [startHour, startMinute] = startTime.split(":").map(Number);
   const [endHour, endMinute] = endTime.split(":").map(Number);
-
   const start = new Date();
   start.setHours(startHour, startMinute, 0, 0);
-
   const end = new Date();
   end.setHours(endHour, endMinute, 0, 0);
-
-  // Night shift support
-  if (end <= start) {
-    end.setDate(end.getDate() + 1);
-  }
-
+  if (end <= start) end.setDate(end.getDate() + 1);
   const current = new Date(start);
-
   while (current < end) {
     const next = new Date(current);
     next.setHours(next.getHours() + 1);
-
     hours.push(
       `${String(current.getHours()).padStart(2, "0")}:${String(current.getMinutes()).padStart(2, "0")}-${String(next.getHours() % 24).padStart(2, "0")}:${String(next.getMinutes()).padStart(2, "0")}`,
     );
-
     current.setHours(current.getHours() + 1);
   }
-
   return hours;
 };
 
+// ── Main component ────────────────────────────────────────────────────────────
+
 export default function ProductionTable({ floor = "Assembly_Floor", lineId, date }: ProductionTableProps) {
   const [rows, setRows] = useState<TableRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  // ── Export helpers (logic unchanged) ────────────────────────────────────────
 
   const buildTableHtml = (): string => {
     const esc = (v: string | number) => String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const hourLabels = rows[0]?.shiftHours || [];
-
     const hourHeaders = hourLabels.flatMap((h) => [`${h} Out`, `${h} %`, `${h} Cum`]);
     const headerCells = ["Assembly Line", "Product Code", "Shift", "Start Time", "End Time", "Hourly Target", "Daily Target", "Total Output", "Progress (%)", ...hourHeaders];
     const thead = `<tr>${headerCells.map((c) => `<th>${esc(c)}</th>`).join("")}</tr>`;
-
     const tbody = rows
       .map((row) => {
         const percentage = row.dailyTarget > 0 ? ((row.totalOutput / row.dailyTarget) * 100).toFixed(1) : "0.0";
@@ -114,22 +105,15 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
             return `<td>${esc(hourlyOutput)}</td><td>${esc(hourlyPercent)}%</td><td>${esc(cumulative)}</td>`;
           })
           .join("");
-
         return `<tr>
-          <td>${esc(row.assemblyLine)}</td>
-          <td>${esc(row.productCode)}</td>
-          <td>${esc(row.shift)}</td>
-          <td>${esc(row.shiftStartTime)}</td>
-          <td>${esc(row.shiftEndTime)}</td>
-          <td>${esc(row.hourlyTarget)}</td>
-          <td>${esc(row.dailyTarget)}</td>
-          <td>${esc(row.totalOutput)}</td>
-          <td>${esc(percentage)}%</td>
-          ${hourCells}
+          <td>${esc(row.assemblyLine)}</td><td>${esc(row.productCode)}</td>
+          <td>${esc(row.shift)}</td><td>${esc(row.shiftStartTime)}</td>
+          <td>${esc(row.shiftEndTime)}</td><td>${esc(row.hourlyTarget)}</td>
+          <td>${esc(row.dailyTarget)}</td><td>${esc(row.totalOutput)}</td>
+          <td>${esc(percentage)}%</td>${hourCells}
         </tr>`;
       })
       .join("");
-
     return `<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11px;"><thead style="background:#dfe4d3;">${thead}</thead><tbody>${tbody}</tbody></table>`;
   };
 
@@ -146,19 +130,19 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
   };
 
   const exportToExcel = () => {
-    if (rows.length === 0) return;
+    if (!rows.length) return;
     const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>${buildTableHtml()}</body></html>`;
     downloadBlob(new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" }), `${fileBase}.xls`);
   };
 
   const exportToWord = () => {
-    if (rows.length === 0) return;
+    if (!rows.length) return;
     const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="UTF-8"><title>${reportTitle}</title></head><body><h2 style="font-family:Arial,sans-serif;">${reportTitle}</h2>${buildTableHtml()}</body></html>`;
     downloadBlob(new Blob([html], { type: "application/msword;charset=utf-8" }), `${fileBase}.doc`);
   };
 
   const exportToPdf = () => {
-    if (rows.length === 0) return;
+    if (!rows.length) return;
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(
@@ -172,6 +156,8 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
     };
   };
 
+  // ── Data fetching (logic unchanged) ─────────────────────────────────────────
+
   useEffect(() => {
     let isMounted = true;
 
@@ -179,22 +165,16 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
       try {
         const linesRes = await axios.get(`${API_BASE_URL}/api/esp32/lines`);
         const linesData = linesRes.data.data || linesRes.data;
-
         if (!linesData || typeof linesData !== "object") return;
 
         const filteredData = lineId && linesData[lineId] ? { [lineId]: linesData[lineId] } : linesData;
 
-        // Each line can now expand into MULTIPLE rows when the machine's
-        // counter was reset mid-shift (one row per "run"). We build an
-        // array of rows per line, then flatten at the end.
         const rowGroupPromises = Object.entries(filteredData).map(async ([lineKey, lineValue]): Promise<TableRow[]> => {
           const line = lineValue as ApiLineData;
           if (!line.machineId) return [];
 
           const startTime = line.shiftStartTime || "08:00";
           const endTime = line.shiftEndTime || "16:00";
-
-          // 🔥 අලුත් Function එක භාවිතා කිරීම
           const shiftHours = generateShiftHours(startTime, endTime);
 
           const baseRow = {
@@ -211,30 +191,15 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
           const lineLabel = lineKey.replaceAll("_", " ");
 
           try {
-            // IMPORTANT: pass the line's real shiftStartTime/shiftEndTime
-            // through to the backend so the hour buckets it builds use
-            // the SAME label format as generateShiftHours() above (e.g.
-            // "08:29-09:29" instead of an hour-aligned "08:00-09:00").
-            // Without this, the hourlyData/runs[].hourlyData keys never
-            // match shiftHours and every column silently shows 0.
             const params = new URLSearchParams();
             if (date) params.set("date", date);
             params.set("shiftStartTime", startTime);
             params.set("shiftEndTime", endTime);
 
-            const url = `${API_BASE_URL}/api/esp32/hourly-production/${line.machineId}?${params.toString()}`;
-
-            const res = await axios.get(url);
+            const res = await axios.get(`${API_BASE_URL}/api/esp32/hourly-production/${line.machineId}?${params.toString()}`);
 
             if (!res.data?.success) {
-              return [
-                {
-                  ...baseRow,
-                  assemblyLine: lineLabel,
-                  hourlyData: {},
-                  totalOutput: 0,
-                },
-              ];
+              return [{ ...baseRow, assemblyLine: lineLabel, hourlyData: {}, totalOutput: 0 }];
             }
 
             const hourlyMap: Record<string, number> = {};
@@ -246,8 +211,6 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
 
             const runs: ApiRunItem[] = Array.isArray(res.data?.runs) ? res.data.runs : [];
 
-            // No reset detected (0 or 1 run) — keep the original single
-            // row per line behaviour, using the whole-day hourlyMap.
             if (runs.length <= 1) {
               return [
                 {
@@ -259,10 +222,6 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
               ];
             }
 
-            // Reset happened mid-shift — show one row per run. Each run
-            // gets its OWN hourly breakdown built from run.hourlyData
-            // (not the shared day-level hourlyMap), so every row shows
-            // only the hours that run actually produced in.
             return runs.map((run) => {
               const runHourlyMap: Record<string, number> = {};
               if (Array.isArray(run.hourlyData)) {
@@ -270,7 +229,6 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
                   runHourlyMap[item.hour] = item.output;
                 });
               }
-
               return {
                 ...baseRow,
                 assemblyLine: `${lineLabel} (Run ${run.runNo}/${runs.length})`,
@@ -284,23 +242,18 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
             });
           } catch (error) {
             console.error(`Error fetching output for ${line.machineId}:`, error);
-            return [
-              {
-                ...baseRow,
-                assemblyLine: lineLabel,
-                hourlyData: {},
-                totalOutput: 0,
-              },
-            ];
+            return [{ ...baseRow, assemblyLine: lineLabel, hourlyData: {}, totalOutput: 0 }];
           }
         });
 
-        const resolvedRowGroups = await Promise.all(rowGroupPromises);
-        const resolvedRows = resolvedRowGroups.flat();
-
-        if (isMounted) setRows(resolvedRows);
+        const resolved = (await Promise.all(rowGroupPromises)).flat();
+        if (isMounted) {
+          setRows(resolved);
+          setLoading(false);
+        }
       } catch (error) {
         console.error("Fetch Error:", error);
+        if (isMounted) setLoading(false);
       }
     };
 
@@ -312,72 +265,110 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
     };
   }, [floor, lineId, date, API_BASE_URL]);
 
+  // ── Render ────────────────────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <div className="flex h-40 items-center justify-center gap-2 text-sm text-slate-400">
+        <Loader2 className="h-4 w-4 animate-spin text-teal-500" />
+        Loading production data…
+      </div>
+    );
+  }
+
+  if (rows.length === 0) return <div className="p-10 text-center text-sm text-slate-400">No production data available.</div>;
+
+  const hourLabels = rows[0]?.shiftHours || [];
+
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-4">
-      <div className="flex justify-end gap-2 mb-3">
+    <div className="space-y-4">
+      {/* Export buttons */}
+      <div className="flex justify-end gap-2">
         <button
           onClick={exportToExcel}
-          disabled={rows.length === 0}
-          className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:opacity-50"
+          disabled={!rows.length}
+          className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-40"
         >
-          Export Excel
+          <FileSpreadsheet className="h-3.5 w-3.5" />
+          Excel
         </button>
         <button
           onClick={exportToWord}
-          disabled={rows.length === 0}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50"
+          disabled={!rows.length}
+          className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-40"
         >
-          Export Word
+          <FileText className="h-3.5 w-3.5" />
+          Word
         </button>
         <button
           onClick={exportToPdf}
-          disabled={rows.length === 0}
-          className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-50"
+          disabled={!rows.length}
+          className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-40"
         >
-          Export PDF
+          <FileDown className="h-3.5 w-3.5" />
+          PDF
         </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-center text-sm border-collapse">
+      {/* Table */}
+      <div className="overflow-x-auto rounded-xl border border-slate-700">
+        <table className="w-full border-collapse text-center text-sm">
+          {/* ── thead ── */}
           <thead>
-            <tr className="bg-[#dfe4d3] text-gray-700">
-              <th className="border p-2">Assembly Line</th>
-              <th className="border p-2">Product Code</th>
-              <th className="border p-2">Total Output</th>
-              <th className="border p-2">Progress (%)</th>
-              <th className="border p-2">Start Time</th>
-              <th className="border p-2">End Time</th>
-              {/* 🔥 Header එක Dynamic ලෙස පෙන්වීම */}
-              {rows[0]?.shiftHours.map((hour, i) => (
-                <th key={i} className="border p-2 text-xs">
+            <tr className="bg-[#b8cbdd] text-gray-900 text-xs font-bold">
+              <th className="border border-slate-700 px-3 py-2">Assembly Line</th>
+              <th className="border border-slate-700 px-3 py-2">Product Code</th>
+              <th className="border border-slate-700 px-3 py-2">Total Output</th>
+              <th className="border border-slate-700 px-3 py-2">Progress (%)</th>
+              <th className="border border-slate-700 px-3 py-2">Start Time</th>
+              <th className="border border-slate-700 px-3 py-2">End Time</th>
+              {hourLabels.map((hour, i) => (
+                <th key={i} className="border border-slate-700 px-2 py-2 text-xs">
                   {hour}
                 </th>
               ))}
             </tr>
           </thead>
+
+          {/* ── tbody ── */}
           <tbody>
-            {rows.map((row, index) => {
-              const percentage = row.dailyTarget > 0 ? ((row.totalOutput / row.dailyTarget) * 100).toFixed(1) : "0.0";
+            {rows.map((row, idx) => {
+              const pct = row.dailyTarget > 0 ? ((row.totalOutput / row.dailyTarget) * 100).toFixed(1) : "0.0";
+              const pctNum = parseFloat(pct);
               let cumulative = 0;
+
               return (
-                <tr key={index} className="hover:bg-gray-50 text-gray-800">
-                  <td className="border p-2 font-semibold">
+                <tr key={idx} className="hover:bg-gray-50 text-gray-800">
+                  {/* Assembly line */}
+                  <td className="border border-slate-700 px-3 py-2 font-semibold text-left">
                     {row.assemblyLine}
                     {row.runCount && row.runCount > 1 && <div className="text-[10px] font-normal text-amber-600 mt-0.5">Reset detected — {row.runCount} runs</div>}
                   </td>
-                  <td className="border p-2">{row.productCode}</td>
-                  <td className="border p-2 font-bold text-blue-700">{row.totalOutput}</td>
-                  <td className="border p-2 font-bold text-purple-700">{percentage}%</td>
-                  <td className="border p-2 font-bold text-green-600">{row.runStartTime ? row.runStartTime.split(" ")[1] || row.runStartTime : row.shiftStartTime}</td>
-                  <td className="border p-2 font-bold text-red-600">{row.runEndTime ? row.runEndTime.split(" ")[1] || row.runEndTime : row.shiftEndTime}</td>
 
+                  {/* Product code */}
+                  <td className="border border-slate-700 px-3 py-2">{row.productCode}</td>
+
+                  {/* Total output */}
+                  <td className="border border-slate-700 px-3 py-2 font-bold text-blue-700">{row.totalOutput}</td>
+
+                  {/* Progress */}
+                  <td className="border border-slate-700 px-3 py-2">
+                    <span className={`font-bold ${pctNum >= 90 ? "text-teal-600" : pctNum >= 60 ? "text-amber-600" : "text-red-600"}`}>{pct}%</span>
+                  </td>
+
+                  {/* Start time */}
+                  <td className="border border-slate-700 px-3 py-2 font-bold text-green-600">{row.runStartTime ? row.runStartTime.split(" ")[1] || row.runStartTime : row.shiftStartTime}</td>
+
+                  {/* End time */}
+                  <td className="border border-slate-700 px-3 py-2 font-bold text-red-600">{row.runEndTime ? row.runEndTime.split(" ")[1] || row.runEndTime : row.shiftEndTime}</td>
+
+                  {/* Hourly cells — original 3-line layout */}
                   {row.shiftHours.map((hour, i) => {
                     const hourlyOutput = row.hourlyData[hour] || 0;
                     cumulative += hourlyOutput;
                     const hourlyPercent = row.hourlyTarget > 0 ? ((hourlyOutput / row.hourlyTarget) * 100).toFixed(0) : "0";
                     return (
-                      <td key={i} className="border p-2">
+                      <td key={i} className="border border-slate-700 px-2 py-2">
                         <div className={`font-semibold ${hourlyOutput >= row.hourlyTarget ? "text-green-600" : "text-red-600"}`}>{hourlyOutput}</div>
                         <div className={`text-[10px] font-semibold ${hourlyOutput >= row.hourlyTarget ? "text-green-500" : "text-red-400"}`}>{hourlyPercent}%</div>
                         <div className="text-[10px] font-medium text-slate-400 mt-0.5">{cumulative}</div>
@@ -388,8 +379,41 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
               );
             })}
           </tbody>
+
+          {/* ── tfoot — Grand Total ── */}
+          {(() => {
+            const grandTotal = rows.reduce((sum, r) => sum + r.totalOutput, 0);
+            const hourLabels = rows[0]?.shiftHours || [];
+            return (
+              <tfoot>
+                <tr className="bg-[#ffffff] font-bold text-gray-800">
+                  <td className="border border-slate-700 px-3 py-2 text-left">Total</td>
+                  <td className="border border-slate-700 px-3 py-2" />
+                  <td className="border border-slate-700 px-3 py-2 text-blue-700">{grandTotal.toLocaleString()}</td>
+                  {/* Progress, Start, End — empty */}
+                  <td className="border border-slate-700 px-3 py-2" />
+                  <td className="border border-slate-700 px-3 py-2" />
+                  <td className="border border-slate-700 px-3 py-2" />
+                  {/* Per-hour totals across all rows */}
+                  {hourLabels.map((hour, i) => {
+                    const hourTotal = rows.reduce((sum, r) => sum + (r.hourlyData[hour] || 0), 0);
+                    const avgTarget = rows.length > 0 ? rows[0].hourlyTarget : 0;
+                    return (
+                      <td key={i} className="border border-slate-700 px-2 py-2 text-center">
+                        <div className={`font-bold ${hourTotal >= avgTarget * rows.length ? "text-green-700" : "text-red-600"}`}>{hourTotal}</div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tfoot>
+            );
+          })()}
         </table>
       </div>
+
+      <p className="text-right text-xs text-slate-400">
+        {rows.length} {rows.length === 1 ? "line" : "lines"} · refreshes every 60 s
+      </p>
     </div>
   );
 }

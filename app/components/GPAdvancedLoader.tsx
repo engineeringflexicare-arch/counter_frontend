@@ -8,7 +8,7 @@ export default function GPAdvancedLoader() {
   const numDots = 16;
 
   return (
-    <div className="h-full bg-gradient-to-br from-slate-950 via-blue-950 to-black flex flex-col items-center justify-center overflow-hidden">
+    <div className="h-full bg-linear-to-br from-slate-950 via-blue-950 to-black flex flex-col items-center justify-center overflow-hidden">
       <style>{`
         @keyframes spin-clockwise {
           100% { transform: rotate(360deg); }
