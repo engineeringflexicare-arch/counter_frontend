@@ -54,6 +54,11 @@ export default function LoginPage() {
       localStorage.setItem("userRole", finalRole);
       localStorage.setItem("userName", finalName);
 
+      // Set cookies for Next.js middleware
+      document.cookie = `token=${token}; path=/; max-age=28800; samesite=strict`;
+      document.cookie = `userRole=${finalRole}; path=/; max-age=28800; samesite=strict`;
+
+
       // Redirect after 1s
       setTimeout(() => {
         switch (finalRole) {

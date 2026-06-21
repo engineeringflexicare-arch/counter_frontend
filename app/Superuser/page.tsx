@@ -1,20 +1,23 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import axios from "axios";
+import api from "../../lib/api";
 import { useRouter } from "next/navigation";
 import { Factory, Layers, Activity, Package, Target, Gauge, BarChart3, PieChart as PieIcon, TrendingUp, LineChart as LineIcon } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, AreaChart, Area, LineChart, Line as RLine } from "recharts";
 import LineCard from "../components/Linecard";
+import { MachineHealth } from "../components/MachineHealthBadge"; // නිවැරදිව Interface එක import කර ඇත
+import Loader from "../components/Loader";
 
 interface Line {
-  id: string;
+  lineId: string;
   machineId?: string;
   productCode?: string;
   targetCount?: number;
   totalProductCount?: number;
   dailyTarget?: number;
   floor?: string;
+  health?: MachineHealth;
 }
 
 export default function SuperuserDashboard() {
@@ -31,16 +34,23 @@ export default function SuperuserDashboard() {
     try {
       setError("");
 
-      // නිවැරදි කළ .env නම: NEXT_PUBLIC_API_BASE_URL
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/esp32/lines`);
+      // "/api/esp32/lines" කියන endpoint එක backend එකේ නැහැ (404).
+      // Lines endpoint එක තියෙන්නේ LineRouter එකේ "/api/lines" කියලා, array එකක් විදිහට.
+      const res = await api.get(`/api/lines`);
+      const data: Line[] = res.data?.data || [];
 
-      const data = res.data?.data;
+      // Fetch Machine Health Status
+      const healthRes = await api.get(`/api/esp32/machine-status`).catch(() => null);
+      const healthData = healthRes?.data?.data || [];
 
-      if (data) {
-        const linesArray: Line[] = Object.entries(data).map(([key, value]) => ({
-          ...(value as Omit<Line, "id">),
-          id: key,
-        }));
+      if (Array.isArray(data)) {
+        const linesArray: Line[] = data.map((line) => {
+          const mHealth = healthData.find((h: MachineHealth) => h.machineId === line.machineId);
+          return {
+            ...line,
+            health: mHealth,
+          };
+        });
 
         setLines(linesArray);
       } else {
@@ -76,14 +86,11 @@ export default function SuperuserDashboard() {
         return;
       }
 
-      // නිවැරදි කළ .env නම: NEXT_PUBLIC_API_BASE_URL
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
-
       try {
         const responses = await Promise.all(
           machineIds.map(async (machineId) => {
             try {
-              const res = await axios.get(`${API_BASE_URL}/api/esp32/hourly-production/${machineId}?date=${today}`);
+              const res = await api.get(`/api/esp32/hourly-production/${machineId}?date=${today}`);
               return res.data?.success && Array.isArray(res.data.hourlyData) ? (res.data.hourlyData as { hour: string; output: number }[]) : [];
             } catch {
               return [];
@@ -122,10 +129,7 @@ export default function SuperuserDashboard() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-gray-300 border-t-blue-600"></div>
-          <p className="text-gray-600 font-medium">Loading Production Lines...</p>
-        </div>
+        <Loader />
       </div>
     );
   }
@@ -165,7 +169,7 @@ export default function SuperuserDashboard() {
 
   // Bar Chart: එක් එක් Line එකේ Output එදිරිව Target
   const lineChartData = lines.map((l) => ({
-    name: l.id.replaceAll("_", " "),
+    name: l.lineId.replaceAll("_", " "),
     output: l.totalProductCount || 0,
     target: l.dailyTarget || l.targetCount || 0,
   }));
@@ -342,13 +346,14 @@ export default function SuperuserDashboard() {
                 </div>
                 <div className="flex flex-wrap gap-4">
                   {floorGroups[floor].map((line) => (
-                    <button key={line.id} onClick={() => router.push(`/Superuser/${line.id}`)} className="text-left cursor-pointer transition-transform hover:scale-105 focus:outline-none">
+                    <button key={line.lineId} onClick={() => router.push(`/Superuser/${line.lineId}`)} className="text-left cursor-pointer transition-transform hover:scale-105 focus:outline-none">
                       <LineCard
-                        line={line.id}
+                        line={line.lineId}
                         product={line.productCode || "N/A"}
                         machine={line.machineId || "No Machine"}
                         target={line.targetCount || line.dailyTarget || 0}
                         current={line.totalProductCount || 0}
+                        health={line.health}
                       />
                     </button>
                   ))}

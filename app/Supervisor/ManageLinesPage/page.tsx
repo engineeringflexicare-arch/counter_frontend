@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import axios from "axios";
+import api from "@/lib/api";
 import { ArrowLeft, Plus, Pencil, Trash2, X, Loader2, Cpu, AlertTriangle, Search, ChevronRight } from "lucide-react";
 
 interface LineRecord {
@@ -58,7 +58,12 @@ const EMPTY_FORM: FormState = {
 
 type ModalMode = "assign" | "edit" | null;
 
-const getToken = () => (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+const getToken = (): string | null => {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("token");
+  }
+  return null;
+};
 
 const getHeaders = () => {
   const token = getToken();
@@ -72,8 +77,9 @@ const shiftColors: Record<string, string> = {
 
 export default function ManageLinesPage() {
   const router = useRouter();
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
-  const LINES_API = `${API_BASE_URL}/api/esp32/lines`;
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+  // ✅ Use /api/lines/ instead of /api/esp32/lines
+  const LINES_API = `${API_BASE_URL}/api/lines`;
 
   const [lines, setLines] = useState<LineRecord[]>([]);
   const [machines, setMachines] = useState<MachineOption[]>([]);
@@ -95,36 +101,49 @@ export default function ManageLinesPage() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const fetchLines = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await axios.get(LINES_API, getHeaders());
-      if (res.data?.success && res.data?.data) {
-        const arr = Object.values(res.data.data) as LineRecord[];
-        setLines(arr.sort((a, b) => a.lineId.localeCompare(b.lineId)));
+  // ✅ FIX: Move data fetching directly into useEffect to avoid setState-in-effect warning
+  useEffect(() => {
+    let isMounted = true; // Prevent state updates if component unmounts
+
+    const fetchLines = async () => {
+      try {
+        setLoading(true);
+        // ✅ Use /api/lines/
+        const res = await api.get(LINES_API, getHeaders());
+        if (isMounted && res.data?.success && res.data?.data) {
+          const arr = Object.values(res.data.data) as LineRecord[];
+          setLines(arr.sort((a, b) => a.lineId.localeCompare(b.lineId)));
+        }
+      } catch (error) {
+        if (isMounted) {
+          showToast("error", "Failed to load lines.");
+        }
+        console.error("Failed to load lines:", error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-    } catch {
-      showToast("error", "Failed to load lines.");
-    } finally {
-      setLoading(false);
-    }
+    };
+
+    fetchLines();
+
+    return () => {
+      isMounted = false;
+    };
   }, [LINES_API]);
 
-  const fetchMachines = useCallback(async () => {
+  const fetchMachines = async () => {
     try {
-      const res = await axios.get(`${LINES_API}/machines`, getHeaders());
+      // ✅ Use /api/esp32/machines/free to get available machines
+      const res = await api.get(`${API_BASE_URL}/api/esp32/machines/free`, getHeaders());
       if (res.data?.success && Array.isArray(res.data.data)) {
         setMachines(res.data.data);
       }
-    } catch {
-      // silent
+    } catch (error) {
+      console.error("Failed to fetch machines:", error);
     }
-  }, [LINES_API]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchLines();
-  }, [fetchLines]);
+  };
 
   const openAssignModal = () => {
     setForm(EMPTY_FORM);
@@ -159,7 +178,9 @@ export default function ManageLinesPage() {
     setFormError(null);
   };
 
-  const handleChange = (field: keyof FormState, value: string) => setForm((prev) => ({ ...prev, [field]: value }));
+  const handleChange = (field: keyof FormState, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
 
   const handleSubmit = async () => {
     if (!form.lineId.trim()) {
@@ -188,17 +209,23 @@ export default function ManageLinesPage() {
     };
     try {
       if (modalMode === "assign") {
-        await axios.post(`${LINES_API}/assign`, payload, getHeaders());
+        // ✅ Use /api/lines/assign
+        await api.post(`${LINES_API}/assign`, payload, getHeaders());
         showToast("success", `${payload.lineId} assigned to ${payload.machineId}.`);
       } else {
-        await axios.put(`${LINES_API}/update`, payload, getHeaders());
+        // ✅ Use /api/lines/update
+        await api.put(`${LINES_API}/update`, payload, getHeaders());
         showToast("success", `${payload.lineId} updated.`);
       }
       setModalMode(null);
-      fetchLines();
-    } catch (err: unknown) {
-      const message = axios.isAxiosError(err) ? err.response?.data?.message || "Something went wrong." : "Something went wrong.";
-      setFormError(message);
+      // Refresh lines
+      const res = await api.get(LINES_API, getHeaders());
+      if (res.data?.success && res.data?.data) {
+        const arr = Object.values(res.data.data) as LineRecord[];
+        setLines(arr.sort((a, b) => a.lineId.localeCompare(b.lineId)));
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? "error" : "error", "Failed to update line.");
     } finally {
       setSaving(false);
     }
@@ -208,15 +235,22 @@ export default function ManageLinesPage() {
     if (!removeTarget) return;
     setRemoving(true);
     try {
-      await axios.delete(`${LINES_API}/remove`, {
+      // ✅ Use /api/lines/remove
+      await api.delete(`${LINES_API}/remove`, {
         data: { lineId: removeTarget.lineId },
         ...getHeaders(),
       });
       showToast("success", `${removeTarget.lineId} assignment removed.`);
       setRemoveTarget(null);
-      fetchLines();
-    } catch {
+      // Refresh lines
+      const res = await api.get(LINES_API, getHeaders());
+      if (res.data?.success && res.data?.data) {
+        const arr = Object.values(res.data.data) as LineRecord[];
+        setLines(arr.sort((a, b) => a.lineId.localeCompare(b.lineId)));
+      }
+    } catch (error) {
       showToast("error", "Failed to remove assignment.");
+      console.error("Error removing assignment:", error);
     } finally {
       setRemoving(false);
     }
@@ -617,7 +651,7 @@ export default function ManageLinesPage() {
   );
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }): React.ReactElement {
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">

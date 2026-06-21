@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import axios from "axios";
+import api from "../../lib/api";
 import { useRouter } from "next/navigation";
 import { Activity, Cpu, Package, TrendingUp, RefreshCw, ChevronRight, AlertCircle } from "lucide-react";
+import MachineHealthBadge, { MachineHealth } from "../components/MachineHealthBadge";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,7 @@ interface ApiLineData {
 
 interface LineData extends ApiLineData {
   id: string;
+  health?: MachineHealth;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -88,6 +90,10 @@ function LineCard({ line, onClick }: { line: LineData; onClick: () => void }) {
             {line.shift} Shift
           </span>
         )}
+      </div>
+
+      <div className="mb-4">
+        <MachineHealthBadge health={line.health} />
       </div>
 
       {/* Progress */}
@@ -164,53 +170,52 @@ export default function SupervisorDashboard() {
   const [filter, setFilter] = useState<"all" | "on-track" | "behind" | "at-risk">("all");
   const router = useRouter();
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+  // ✅ Corrected API calls using consistent backend routes
+  const fetchLines = useCallback(async (isManual = false) => {
+    if (isManual) setRefreshing(true);
+    try {
+      // Use /api/lines/ instead of /api/esp32/lines
+      const linesRes = await api.get(`/api/lines/`);
+      // Use /api/esp32/status instead of /api/esp32/machine-status
+      const healthRes = await api.get(`/api/esp32/status`);
 
-  // Stable fetch function — never changes identity, so safe to call from effects.
-  const fetchLines = useCallback(
-    async (isManual = false) => {
-      if (isManual) setRefreshing(true);
-      try {
-        const token = localStorage.getItem("token");
-        const res = await axios.get(`${API_BASE_URL}/api/esp32/lines`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = res.data?.data as Record<string, ApiLineData>;
-        if (data) {
-          const arr: LineData[] = Object.entries(data).map(([key, val]) => ({
+      const data = linesRes.data?.data as Record<string, ApiLineData>;
+      const healthData = healthRes.data?.data || [];
+
+      if (data) {
+        const arr: LineData[] = Object.entries(data).map(([key, val]) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const mHealth = healthData.find((h: any) => h.machineId === val.machineId);
+          return {
             ...val,
             id: key,
-          }));
-          setLines(arr.sort((a, b) => a.id.localeCompare(b.id)));
-          setLastUpdated(new Date());
-        }
-      } catch (err) {
-        console.error("Error fetching lines:", err);
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
+            health: mHealth,
+          };
+        });
+        setLines(arr.sort((a, b) => a.id.localeCompare(b.id)));
+        setLastUpdated(new Date());
       }
-    },
-    [API_BASE_URL],
-  );
+    } catch (err) {
+      console.error("Error fetching lines:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
-  // Keep a ref so the interval callback always sees the latest fetchLines
-  // without the effect needing to re-run when fetchLines changes.
   const fetchLinesRef = useRef(fetchLines);
   useEffect(() => {
     fetchLinesRef.current = fetchLines;
   }, [fetchLines]);
 
   useEffect(() => {
-    // Initial load — run after first paint so setState happens in a microtask,
-    // not synchronously in the effect body (satisfies react-hooks/set-state-in-effect).
     const initialTimer = setTimeout(() => fetchLinesRef.current(), 0);
     const iv = setInterval(() => fetchLinesRef.current(), 30000);
     return () => {
       clearTimeout(initialTimer);
       clearInterval(iv);
     };
-  }, []); // empty deps — intentional: ref keeps it fresh
+  }, []);
 
   const filteredLines = lines.filter((l) => {
     const t = l.dailyTarget || l.targetCount || 0;
@@ -221,7 +226,6 @@ export default function SupervisorDashboard() {
     return true;
   });
 
-  // ── Loading skeleton ───────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 p-6">
@@ -244,7 +248,6 @@ export default function SupervisorDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Sticky header */}
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div>
@@ -267,10 +270,8 @@ export default function SupervisorDashboard() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        {/* Summary */}
         <SummaryBar lines={lines} />
 
-        {/* Filter tabs */}
         <div className="mb-5 flex items-center gap-1.5 overflow-x-auto pb-1">
           {(["all", "on-track", "behind", "at-risk"] as const).map((f) => {
             const labels: Record<typeof f, string> = {
@@ -293,7 +294,6 @@ export default function SupervisorDashboard() {
           })}
         </div>
 
-        {/* Grid */}
         {filteredLines.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-white py-20 text-center">
             <span className="rounded-full bg-slate-100 p-4">
@@ -304,7 +304,7 @@ export default function SupervisorDashboard() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredLines.map((line) => (
-              <LineCard key={line.id} line={line} onClick={() => router.push(`/Supervisor/${encodeURIComponent(line.id)}`)} />
+              <LineCard key={line.id} line={line} onClick={() => router.push(`/Supervisor/line/${line.id}`)} />
             ))}
           </div>
         )}

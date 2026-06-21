@@ -1,60 +1,56 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import axios from "axios";
-import { Factory, Target, Package, Gauge, Activity, Radio, ChevronRight } from "lucide-react";
+import api from "@/lib/api"; // සාමාන්‍ය axios වෙනුවට ඔබේ api interceptor එක import කර ඇත
+import { Factory, Target, Package, Gauge, Activity } from "lucide-react";
 import ProductionTable from "@/app/components/ProductionTable";
+import ProductionGapChart from "@/app/components/ProductionGapChart";
+import CumulativeChart from "@/app/components/CumulativeChart";
+import LineOverviewCard from "@/app/components/LineOverviewCard";
 import LineCard from "@/app/components/Linecard";
 
 // දත්ත වල හැඩය (Interface)
 interface LineData {
-  id: string;
+  _id?: string;
+  lineId: string;
   machineId?: string;
   productCode?: string;
-  targetCount?: number;
   totalProductCount?: number;
   floor?: string;
   dailyTarget?: number;
 }
 
-export default function ADminAssemblyFloorViewPage() {
-  const router = useRouter();
+interface HourlyItem {
+  hour: string;
+  output: number;
+}
+
+export default function AssemblyFloorPage() {
   const today = new Date().toISOString().split("T")[0];
   const [selectedDate, setSelectedDate] = useState(today);
 
   // States
   const [lines, setLines] = useState<LineData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedLine, setSelectedLine] = useState<LineData | null>(null);
+  const [cumulativeChartData, setCumulativeChartData] = useState<{ time: string; cumulative: number }[]>([]);
   const [floorTotalOutput, setFloorTotalOutput] = useState(0);
 
-  // නිවැරදි කළ නම: NEXT_PUBLIC_API_BASE_URL
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
-  const FLOOR_NAME = "Assembly Floor";
-
-  interface LineApiResponse {
-    [key: string]: LineData;
-  }
+  const FLOOR_NAME = "Assembly_Floor";
 
   // 1. Assembly Floor එකට අදාළ Lines ලබා ගැනීම
   useEffect(() => {
     const fetchLines = async () => {
       try {
         setLoading(true);
-        const res = await axios.get(`${API_BASE_URL}/api/esp32/lines`);
 
-        const data = res.data?.data as LineApiResponse;
+        const res = await api.get("/api/lines");
 
-        if (data) {
-          const linesArray: LineData[] = Object.entries(data)
-            .map(([key, value]) => ({
-              ...value,
-              id: key,
-            }))
-            .filter((line) => line.floor === FLOOR_NAME || !line.floor);
+        console.log("LINES API", res.data);
 
-          setLines(linesArray);
-        }
+        const linesArray = (res.data?.data || []).filter((line: LineData) => line.floor === FLOOR_NAME || !line.floor);
+
+        setLines(linesArray);
       } catch (err) {
         console.error("Error fetching lines:", err);
       } finally {
@@ -63,11 +59,38 @@ export default function ADminAssemblyFloorViewPage() {
     };
 
     fetchLines();
-    const interval = setInterval(fetchLines, 30000);
-    return () => clearInterval(interval);
-  }, [API_BASE_URL]);
+  }, []);
 
-  // 2. තෝරාගත් දිනයට සියලුම Line වල මුළු output ගණන ලබා ගැනීම
+  // 2. Line එකක් Select කළ පසු එයට අදාළ Cumulative Chart දත්ත ලබා ගැනීම
+  useEffect(() => {
+    if (!selectedLine?.machineId) return;
+
+    const fetchCumulativeData = async () => {
+      try {
+        const res = await api.get(`/api/esp32/hourly-production/${selectedLine.machineId}?date=${selectedDate}`);
+
+        if (res.data?.success && Array.isArray(res.data.hourlyData)) {
+          let cumulative = 0;
+          const chartData = res.data.hourlyData.map((item: HourlyItem) => {
+            cumulative += item.output;
+            return {
+              time: item.hour,
+              cumulative,
+            };
+          });
+          setCumulativeChartData(chartData);
+        }
+      } catch (error) {
+        console.error("Error fetching cumulative chart:", error);
+      }
+    };
+
+    fetchCumulativeData();
+    const interval = setInterval(fetchCumulativeData, 30000);
+    return () => clearInterval(interval);
+  }, [selectedLine, selectedDate]);
+
+  // 3. තෝරාගත් දිනයට සියලුම Line වල මුළු output ගණන ලබා ගැනීම
   useEffect(() => {
     const machineIds = lines.map((l) => l.machineId).filter((id): id is string => Boolean(id));
 
@@ -81,7 +104,7 @@ export default function ADminAssemblyFloorViewPage() {
         const results = await Promise.all(
           machineIds.map(async (machineId) => {
             try {
-              const res = await axios.get(`${API_BASE_URL}/api/esp32/hourly-production/${machineId}?date=${selectedDate}`);
+              const res = await api.get(`/api/esp32/hourly-production/${machineId}?date=${selectedDate}`);
               return res.data?.success ? res.data.totalOutput || 0 : 0;
             } catch {
               return 0;
@@ -100,160 +123,102 @@ export default function ADminAssemblyFloorViewPage() {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [lines, selectedDate, API_BASE_URL]);
-
-  // Line card එක click කළ විට, ඒ line එකේ overview page එකට navigate කරයි
-  // -> /assemblyfloor/[id]/page.tsx
-  const handleLineClick = (line: LineData) => {
-    router.push(`/Admin/assembly-floor/${line.id}`);
-  };
-
-  const activeLines = lines.filter((l) => l.machineId);
-  const idleLines = lines.filter((l) => !l.machineId);
+  }, [lines, selectedDate]);
 
   const totalLines = lines.length;
-  const activeMachines = activeLines.length;
+  const activeMachines = lines.filter((l) => l.machineId).length;
   const totalProducts = floorTotalOutput;
   const totalTarget = lines.reduce((sum, l) => sum + (l.dailyTarget || 0), 0);
   const overallProgress = totalTarget > 0 ? ((totalProducts / totalTarget) * 100).toFixed(1) : "0.0";
-  const progressNum = parseFloat(overallProgress);
 
   const stats = [
-    { label: "Total Lines", value: totalLines, icon: Factory, accent: "text-sky-400", glow: "shadow-sky-500/10" },
-    { label: "Active Machines", value: activeMachines, icon: Activity, accent: "text-emerald-400", glow: "shadow-emerald-500/10" },
-    { label: "Total Output", value: totalProducts.toLocaleString(), icon: Package, accent: "text-violet-400", glow: "shadow-violet-500/10" },
-    { label: "Daily Target", value: totalTarget.toLocaleString(), icon: Target, accent: "text-amber-400", glow: "shadow-amber-500/10" },
-    { label: "Overall Progress", value: `${overallProgress}%`, icon: Gauge, accent: "text-cyan-400", glow: "shadow-cyan-500/10" },
+    { label: "Total Lines", value: totalLines, icon: Factory, accent: "bg-blue-50 text-blue-600" },
+    { label: "Active Machines", value: activeMachines, icon: Activity, accent: "bg-emerald-50 text-emerald-600" },
+    { label: "Total Products", value: totalProducts.toLocaleString(), icon: Package, accent: "bg-indigo-50 text-indigo-600" },
+    { label: "Daily Target", value: totalTarget.toLocaleString(), icon: Target, accent: "bg-amber-50 text-amber-600" },
+    { label: "Overall Progress", value: `${overallProgress}%`, icon: Gauge, accent: "bg-purple-50 text-purple-600" },
   ];
 
   return (
-    <div
-      className="min-h-screen w-full bg-[#0A0E14] p-4 text-slate-200 sm:p-6"
-      style={{
-        backgroundImage: "radial-gradient(circle at 1px 1px, rgba(148,163,184,0.07) 1px, transparent 0)",
-        backgroundSize: "28px 28px",
-      }}
-    >
-      {/* ===== Control header ===== */}
-      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-slate-800 bg-[#0F1420] p-6 shadow-xl shadow-black/30 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
-          <div className="relative rounded-xl border border-slate-700 bg-slate-900 p-3">
-            <Factory className="h-6 w-6 text-cyan-400" />
+    <div className="bg-neutral-50 w-full min-h-screen p-6">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-6 gap-4 rounded-2xl bg-linear-to-r from-slate-800 to-slate-700 p-6 shadow-md">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-white/10 p-3">
+            <Factory className="h-7 w-7 text-white" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-mono text-xl font-bold uppercase tracking-wider text-white sm:text-2xl">Assembly Floor</h1>
-              <span className="hidden rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 font-mono text-[10px] tracking-widest text-slate-400 sm:inline">ADMIN</span>
-            </div>
-            <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
-              </span>
-              Live production monitor &middot; refreshes every 30s
-            </div>
+            <h1 className="text-2xl font-extrabold text-white">Assembly Floor</h1>
+            <p className="text-slate-300 text-sm mt-0.5">Real-time production overview</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/80 px-4 py-2.5">
-          <label htmlFor="date" className="font-mono text-xs uppercase tracking-wide text-slate-500">
-            Date
+        <div className="flex items-center gap-3 bg-white/95 p-2 px-4 rounded-lg shadow-sm">
+          <label htmlFor="date" className="text-sm font-semibold text-slate-600">
+            Date:
           </label>
-          <input
-            type="date"
-            id="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="cursor-pointer bg-transparent font-mono text-sm text-slate-100 outline-none scheme-dark"
-          />
+          <input type="date" id="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="text-sm text-slate-800 outline-none cursor-pointer bg-transparent" />
         </div>
       </div>
 
-      {/* ===== KPI strip ===== */}
-      <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         {stats.map((stat) => (
-          <div key={stat.label} className={`group relative overflow-hidden rounded-xl border border-slate-800 bg-[#0F1420] p-4 shadow-lg ${stat.glow} transition-colors hover:border-slate-700`}>
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">{stat.label}</p>
-              <stat.icon className={`h-4 w-4 ${stat.accent} opacity-80`} />
+          <div key={stat.label} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md">
+            <div className={`rounded-xl p-3 ${stat.accent}`}>
+              <stat.icon className="h-6 w-6" />
             </div>
-            <p className={`mt-2 font-mono text-2xl font-semibold tabular-nums text-white`}>{loading ? <span className="text-slate-600">—</span> : stat.value}</p>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-500 truncate">{stat.label}</p>
+              <p className="text-xl font-bold text-slate-800">{loading ? "—" : stat.value}</p>
+            </div>
           </div>
         ))}
       </div>
 
-      {/* progress rail */}
-      {!loading && totalTarget > 0 && (
-        <div className="-mt-5 mb-8 h-1 w-full overflow-hidden rounded-full bg-slate-800">
-          <div
-            className={`h-full rounded-full transition-all duration-700 ${progressNum >= 100 ? "bg-emerald-400" : progressNum >= 60 ? "bg-cyan-400" : "bg-amber-400"}`}
-            style={{ width: `${Math.min(progressNum, 100)}%` }}
-          />
-        </div>
-      )}
-
-      {/* ===== Line tiles ===== */}
       {loading ? (
-        <div className="flex h-32 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-cyan-400"></div>
+        <div className="flex justify-center items-center h-32">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       ) : lines.length === 0 ? (
-        <div className="mb-8 rounded-xl border border-dashed border-slate-800 bg-[#0F1420] p-8 text-center text-sm text-slate-500">No lines assigned to the Assembly Floor.</div>
+        <div className="bg-white rounded-xl shadow-sm p-6 text-center text-slate-500 border border-slate-200 mb-8">No lines assigned to the Assembly Floor.</div>
       ) : (
-        <>
-          {/* Active lines — shown up front */}
-          <div className="mb-3 flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
-            </span>
-            <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-slate-300">Active Lines</h2>
-            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] text-emerald-400">{activeLines.length}</span>
-          </div>
-
-          {activeLines.length === 0 ? (
-            <div className="mb-8 rounded-xl border border-dashed border-slate-800 bg-[#0F1420] p-6 text-center text-sm text-slate-500">No active lines on this floor right now.</div>
-          ) : (
-            <div className="mb-8 flex flex-wrap gap-4">
-              {activeLines.map((line) => (
-                <div key={line.id} onClick={() => handleLineClick(line)} className="group relative cursor-pointer rounded-xl transition-all duration-200 hover:-translate-y-1">
-                  <LineCard line={line.id} product={line.productCode || "N/A"} machine={line.machineId || "No Machine"} target={line.dailyTarget || 0} current={line.totalProductCount || 0} />
-                  <div className="pointer-events-none absolute right-2 top-2 flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/90 px-2 py-1 font-mono text-[10px] text-slate-400 opacity-0 transition-opacity group-hover:opacity-100">
-                    Overview <ChevronRight className="h-3 w-3" />
-                  </div>
-                </div>
-              ))}
+        <div className="flex flex-wrap justify-items-start gap-4 mb-8">
+          {lines.map((line) => (
+            <div
+              key={line._id || line.lineId}
+              onClick={() => setSelectedLine(line)}
+              className={`cursor-pointer transition-all duration-200 transform hover:-translate-y-1 ${
+                selectedLine?.lineId === line.lineId ? "ring-2 ring-blue-500 rounded-xl shadow-md" : "opacity-90 hover:opacity-100"
+              }`}
+            >
+              <LineCard line={line.lineId} product={line.productCode || "N/A"} machine={line.machineId || "No Machine"} target={line.dailyTarget || 0} current={line.totalProductCount || 0} />
             </div>
-          )}
-
-          {/* Idle / unassigned lines — secondary, tucked below */}
-          {idleLines.length > 0 && (
-            <>
-              <div className="mb-3 flex items-center gap-2">
-                <Radio className="h-3.5 w-3.5 text-slate-600" />
-                <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-slate-500">Idle / Unassigned Lines</h2>
-                <span className="rounded-full border border-slate-700 bg-slate-900 px-2 py-0.5 font-mono text-[10px] text-slate-500">{idleLines.length}</span>
-              </div>
-              <div className="mb-8 flex flex-wrap gap-4 opacity-70">
-                {idleLines.map((line) => (
-                  <div key={line.id} onClick={() => handleLineClick(line)} className="relative cursor-pointer rounded-xl grayscale transition-all duration-200 hover:-translate-y-1 hover:grayscale-0">
-                    <LineCard line={line.id} product={line.productCode || "N/A"} machine={line.machineId || "No Machine"} target={line.dailyTarget || 0} current={line.totalProductCount || 0} />
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </>
+          ))}
+        </div>
       )}
 
-      <div className="mb-8 h-px w-full bg-linear-to-r from-transparent via-slate-800 to-transparent" />
+      <hr className="border-slate-200 mb-8" />
 
-      {/* ===== Floor summary table ===== */}
-      <div>
-        <p className="font-mono text-[11px] uppercase tracking-widest text-slate-500">Floor Summary</p>
-        <h2 className="mb-4 font-mono text-lg font-bold text-white">Overall Floor Production</h2>
-        <ProductionTable floor={FLOOR_NAME} date={selectedDate} />
-      </div>
+      {selectedLine ? (
+        <div className="animate-fade-in-up">
+          <div className="flex justify-between items-end mb-6">
+            <h2 className="text-xl font-bold text-slate-800">{selectedLine.lineId} Detailed Overview</h2>
+            <button onClick={() => setSelectedLine(null)} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+              Close Details
+            </button>
+          </div>
+          <div className="flex flex-col gap-6">
+            <LineOverviewCard lineId={selectedLine.lineId} />
+            <CumulativeChart machineId={selectedLine.machineId || ""} cumulativeData={cumulativeChartData} daily={selectedLine.dailyTarget || 0} />
+            <ProductionGapChart lineId={selectedLine.lineId} date={selectedDate} />
+            <ProductionTable floor={FLOOR_NAME} lineId={selectedLine.lineId} date={selectedDate} />
+          </div>
+        </div>
+      ) : (
+        <div>
+          <h2 className="text-lg font-bold text-slate-700 mb-4">Overall Floor Production</h2>
+          <ProductionTable floor={FLOOR_NAME} date={selectedDate} />
+        </div>
+      )}
     </div>
   );
 }

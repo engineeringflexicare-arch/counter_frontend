@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import axios from "axios";
+import api from "@/lib/api"; // සාමාන්‍ය axios වෙනුවට අපේ custom api එක import කරගැනීම
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ReferenceLine } from "recharts";
 
 interface ProductionGapChartProps {
@@ -50,8 +50,6 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   );
 };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
-
 export default function ProductionGapChart({ lineId, date }: ProductionGapChartProps) {
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [averageGap, setAverageGap] = useState(0);
@@ -89,14 +87,15 @@ export default function ProductionGapChart({ lineId, date }: ProductionGapChartP
 
     const fetchData = async () => {
       try {
-        // Combined Route එක භාවිතා කිරීම
-        let url = `${API_BASE_URL}/api/esp32/production-gaps?lineId=${lineId}`;
+        // api instance එකේ baseURL සකසා ඇති බැවින් relative URL පමණක් ප්‍රමාණවත්ය
+        let url = `/api/esp32/production-gaps?lineId=${lineId}`;
 
         if (date) {
           url += `&date=${date}`;
         }
 
-        const response = await axios.get<ApiResponse>(url);
+        // axios වෙනුවට api භාවිතා කිරීම
+        const response = await api.get<ApiResponse>(url);
 
         if (response.data?.success) {
           const plannedGap = Number(response.data.averageGap) || 0;

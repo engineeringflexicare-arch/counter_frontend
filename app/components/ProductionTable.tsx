@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "@/lib/api"; // axios වෙනුවට api පමණක් භාවිත කිරීම
 import { FileSpreadsheet, FileText, FileDown, Loader2 } from "lucide-react";
-// FileDown kept for PDF export button
 
-// ── Types (unchanged) ─────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────
 
 interface ProductionTableProps {
   floor?: string;
@@ -32,6 +31,8 @@ interface TableRow {
 }
 
 interface ApiLineData {
+  lineId?: string;
+  floor?: string;
   machineId?: string;
   shift?: string;
   productCode?: string;
@@ -55,7 +56,7 @@ interface ApiRunItem {
   hourlyData?: ApiHourlyItem[];
 }
 
-// ── Helpers (unchanged logic) ──────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────
 
 const generateShiftHours = (startTime: string, endTime: string): string[] => {
   const hours: string[] = [];
@@ -83,9 +84,8 @@ const generateShiftHours = (startTime: string, endTime: string): string[] => {
 export default function ProductionTable({ floor = "Assembly_Floor", lineId, date }: ProductionTableProps) {
   const [rows, setRows] = useState<TableRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-  // ── Export helpers (logic unchanged) ────────────────────────────────────────
+  // ── Export helpers ────────────────────────────────────────
 
   const buildTableHtml = (): string => {
     const esc = (v: string | number) => String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -156,16 +156,31 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
     };
   };
 
-  // ── Data fetching (logic unchanged) ─────────────────────────────────────────
+  // ── Data fetching ─────────────────────────────────────────
 
   useEffect(() => {
     let isMounted = true;
 
     const fetchAllData = async () => {
       try {
-        const linesRes = await axios.get(`${API_BASE_URL}/api/esp32/lines`);
-        const linesData = linesRes.data.data || linesRes.data;
-        if (!linesData || typeof linesData !== "object") return;
+        // "/api/esp32/lines" කියන endpoint එක backend එකේ නැහැ (404 දෙනවා).
+        // සත්‍ය lines endpoint එක තියෙන්නේ LineRouter එකේ "/api/lines" කියලා.
+        const linesRes = await api.get("/api/lines");
+        const linesArray: ApiLineData[] = linesRes.data?.data || [];
+
+        if (!Array.isArray(linesArray)) return;
+
+        // "/api/lines" එකෙන් එන්නේ array එකක්, නමුත් මේ component එක
+        // lineId එක key එක විදිහට තියෙන object එකක් අපේක්ෂා කරනවා.
+        // ඒ වගේම floor එකට අදාළ lines විතරක් filter කරගන්නවා.
+        const linesData: Record<string, ApiLineData> = {};
+        linesArray
+          .filter((line) => !floor || line.floor === floor || !line.floor)
+          .forEach((line) => {
+            if (line.lineId) {
+              linesData[line.lineId] = line;
+            }
+          });
 
         const filteredData = lineId && linesData[lineId] ? { [lineId]: linesData[lineId] } : linesData;
 
@@ -196,7 +211,10 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
             params.set("shiftStartTime", startTime);
             params.set("shiftEndTime", endTime);
 
-            const res = await axios.get(`${API_BASE_URL}/api/esp32/hourly-production/${line.machineId}?${params.toString()}`);
+            // මෙහි axios වෙනුවට api භාවිතා කර ඇත. එසේම API_BASE_URL ඉවත් කර ඇත.
+            const res = await api.get(`/api/esp32/hourly-production/${line.machineId}`, {
+              params: params,
+            });
 
             if (!res.data?.success) {
               return [{ ...baseRow, assemblyLine: lineLabel, hourlyData: {}, totalOutput: 0 }];
@@ -263,7 +281,7 @@ export default function ProductionTable({ floor = "Assembly_Floor", lineId, date
       isMounted = false;
       clearInterval(interval);
     };
-  }, [floor, lineId, date, API_BASE_URL]);
+  }, [floor, lineId, date]);
 
   // ── Render ────────────────────────────────────────────────────────────────────
 

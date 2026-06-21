@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import axios from "axios";
+import api from "@/lib/api"; // raw axios + manual localStorage token reading වෙනුවට shared api instance එක
 import { UserPlus, UserCheck, UserX, Search, X } from "lucide-react";
 import Loader from "@/app/components/Loader";
 import toast, { Toaster } from "react-hot-toast";
@@ -33,21 +33,16 @@ export default function SuperuserUserManagement() {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
-
   // 1. Fetch Users List
   useEffect(() => {
     let isMounted = true;
     const fetchUsers = async () => {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        if (isMounted) setLoading(false);
-        return;
-      }
       try {
-        const res = await axios.get(`${API_BASE_URL}/api/superuser/users`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        // NOTE: server.js එකේ "/api/superuser" කියලා mount කරපු router එකක් මට පේන්නේ නැහැ —
+        // server.js එකේ "/api/users" යටතේ UserRouter එක තමයි user management සඳහා mount කරලා
+        // තියෙන්නේ. මේ endpoint එක backend එකේ ඇත්තටම පවතින්නේ "/api/superuser/..." ලෙසද
+        // නැත්නම් "/api/users/..." ලෙසද කියලා UsersRouter.js එක බලලා තහවුරු කරගන්න.
+        const res = await api.get(`/api/superuser/users`);
         if (isMounted && res.data.success) {
           setUsers(res.data.data);
         }
@@ -63,20 +58,17 @@ export default function SuperuserUserManagement() {
     return () => {
       isMounted = false;
     };
-  }, [API_BASE_URL, refreshTrigger]);
+  }, [refreshTrigger]);
 
   // 2. Add New Supervisor Function
   const handleAddSupervisor = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
 
-    const token = localStorage.getItem("token");
     const toastId = toast.loading("Adding supervisor...");
 
     try {
-      const res = await axios.post(`${API_BASE_URL}/api/superuser/add`, formData, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.post(`/api/superuser/add`, formData);
 
       if (res.data.success) {
         toast.success("Supervisor added successfully!", { id: toastId });
@@ -85,11 +77,12 @@ export default function SuperuserUserManagement() {
         setIsModalOpen(false);
       }
     } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        toast.error(err.response?.data?.message || "Failed to add supervisor.", { id: toastId });
-      } else {
-        toast.error("An unexpected error occurred.", { id: toastId });
-      }
+      const message =
+        err && typeof err === "object" && "response" in err
+          ? // @ts-expect-error - axios error shape
+            err.response?.data?.message
+          : undefined;
+      toast.error(message || "Failed to add supervisor.", { id: toastId });
     } finally {
       setSubmitting(false);
     }
@@ -97,11 +90,10 @@ export default function SuperuserUserManagement() {
 
   // 🔥 3. (A) ඇත්තටම Block/Unblock API එක Call කරන කොටස
   const executeToggleBlock = async (userId: string, endpoint: string) => {
-    const token = localStorage.getItem("token");
     const toastId = toast.loading(`${endpoint === "block" ? "Blocking" : "Unblocking"} supervisor...`);
 
     try {
-      const res = await axios.patch(`${API_BASE_URL}/api/superuser/${endpoint}/${userId}`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await api.patch(`/api/superuser/${endpoint}/${userId}`, {});
 
       if (res.data.success) {
         toast.success(`Supervisor ${endpoint}ed successfully!`, { id: toastId });

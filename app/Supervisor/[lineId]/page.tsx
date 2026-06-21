@@ -1,94 +1,134 @@
 "use client";
 
-import { useState } from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, CalendarDays, Table2, Cpu } from "lucide-react";
+import { useEffect, useState, use } from "react";
+import api from "@/lib/api"; // අපේ custom axios instance එක import කරගැනීම
 import ProductionTable from "@/app/components/ProductionTable";
 import ProductionGapChart from "@/app/components/ProductionGapChart";
+import CumulativeChart from "@/app/components/CumulativeChart";
+import LineOverviewCard from "@/app/components/LineOverviewCard";
+import Loader from "@/app/components/Loader";
 
-export default function Page() {
-  const params = useParams<{ lineId: string }>();
-  const lineId = params?.lineId || "";
-  const displayName = decodeURIComponent(lineId).replaceAll("_", " ");
+interface PageProps {
+  params: Promise<{
+    lineId: string;
+  }>;
+}
 
-  const today = new Date().toISOString().split("T")[0];
-  const [selectedDate, setSelectedDate] = useState(today);
+interface HourlyItem {
+  hour: string;
+  output: number;
+}
+
+export default function Page({ params }: PageProps) {
+  // Client component එකක් ඇතුළේ Promise params resolve කරගැනීම සඳහා 'use' යොදාගත යුතුය (Next.js 14/15)
+  const resolvedParams = use(params);
+  const lineId = resolvedParams.lineId;
+
+  const [machineId, setMachineId] = useState<string | null>(null);
+  const [dailyTarget, setDailyTarget] = useState<number>(0);
+  const [cumulativeChartData, setCumulativeChartData] = useState<{ time: string; cumulative: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchLineDetails = async () => {
+      try {
+        setLoading(true);
+        // "/api/esp32/lines/:lineId" කියන endpoint එක backend එකේ නැහැ (404).
+        // Single line එකක් ලබාගන්න endpoint එක LineRouter එකේ "/api/lines/:lineId" කියලා.
+        const lineRes = await api.get(`/api/lines/${lineId}`);
+
+        if (lineRes.data?.success) {
+          const fetchedMachineId = lineRes.data.data?.machineId;
+          const target = lineRes.data.data?.dailyTarget || 0;
+
+          if (isMounted) {
+            setMachineId(fetchedMachineId || null);
+            setDailyTarget(target);
+          }
+
+          // Machine ID එකක් තියෙනවා නම් පමණක් Hourly Production දත්ත ලබා ගැනීම
+          if (fetchedMachineId) {
+            const prodRes = await api.get(`/api/esp32/hourly-production/${fetchedMachineId}`);
+
+            if (prodRes.data?.success && Array.isArray(prodRes.data.hourlyData)) {
+              let cumulative = 0;
+              const chartData = prodRes.data.hourlyData.map((item: HourlyItem) => {
+                cumulative += item.output;
+                return {
+                  time: item.hour,
+                  cumulative,
+                };
+              });
+              if (isMounted) setCumulativeChartData(chartData);
+            }
+          }
+        } else {
+          if (isMounted) setError(true);
+        }
+      } catch (err) {
+        console.error("Error fetching line details:", err);
+        if (isMounted) setError(true);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchLineDetails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [lineId]);
+
+  if (loading) {
+    return (
+      <div className="bg-neutral-50 w-full min-h-screen p-4 flex items-center justify-center">
+        <Loader />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Sticky header */}
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          {/* Left — breadcrumb */}
-          <div className="flex items-center gap-3">
-            <Link
-              href="/Supervisor"
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              All Lines
-            </Link>
+    <div className="bg-neutral-50 w-full min-h-screen p-4">
+      {/* Line Title */}
+      <h1 className="text-2xl font-extrabold text-center text-slate-800 mb-6">{lineId.replaceAll("_", " ")} Overview</h1>
 
-            <span className="text-slate-300">/</span>
-
-            <div className="flex items-center gap-2">
-              <span className="rounded-lg bg-teal-50 p-1.5">
-                <Cpu className="h-4 w-4 text-teal-600" />
-              </span>
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Production Log</p>
-                <h1 className="text-sm font-bold text-slate-800 sm:text-base">{displayName || "Line"}</h1>
-              </div>
+      {/* Machine ID එකක් හමු නොවුණහොත් හෝ Error එකක් ආවොත් Message එකක් පෙන්වීම */}
+      {!machineId || error ? (
+        <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-200 text-center">
+          <p className="font-semibold">Line Data Not Found</p>
+          <p className="text-sm mt-1">Unable to load machine details for {lineId}. Please check the database connection or line configurations.</p>
+        </div>
+      ) : (
+        <div className="animate-fade-in-up">
+          {/* Top Section */}
+          <div className="flex gap-4 items-start mb-4">
+            <div className="flex-1">
+              <LineOverviewCard lineId={lineId} />
             </div>
           </div>
 
-          {/* Right — date picker */}
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm transition hover:border-teal-300 focus-within:border-teal-400 focus-within:ring-2 focus-within:ring-teal-100">
-            <CalendarDays className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Date</span>
-            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="cursor-pointer bg-transparent text-sm font-medium text-slate-700 outline-none" />
-          </label>
-        </div>
-      </header>
+          {/* Cumulative Chart (දත්ත ඇත්නම් පමණක් පෙන්වීම) */}
+          {cumulativeChartData.length > 0 ? (
+            <div className="mb-4">
+              <CumulativeChart machineId={machineId} cumulativeData={cumulativeChartData} daily={dailyTarget} />
+            </div>
+          ) : (
+            <div className="mb-4 bg-white border border-slate-200 p-6 rounded-2xl text-center text-slate-500">No production data available for this machine today.</div>
+          )}
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        {/* Gap Analysis */}
-        {lineId && (
+          {/* Gap Analysis */}
           <div className="mb-4">
             <ProductionGapChart lineId={lineId} />
           </div>
-        )}
 
-        {/* Section card */}
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          {/* Section header */}
-          <div className="flex items-center gap-2.5 border-b border-slate-100 bg-slate-50/60 px-5 py-3.5">
-            <span className="rounded-lg bg-teal-50 p-1.5 text-teal-600">
-              <Table2 className="h-4 w-4" />
-            </span>
-            <h2 className="text-sm font-bold text-slate-700">Hourly Production Log</h2>
-            <span className="ml-auto rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px] text-slate-500">
-              {new Date(selectedDate).toLocaleDateString("en-GB", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              })}
-            </span>
-          </div>
-
-          <div className="p-5">
-            {lineId ? (
-              <ProductionTable lineId={lineId} date={selectedDate} />
-            ) : (
-              <div className="flex flex-col items-center gap-2 py-16 text-center">
-                <Table2 className="h-8 w-8 text-slate-300" />
-                <p className="text-sm text-slate-400">Loading line data…</p>
-              </div>
-            )}
-          </div>
+          {/* Production Table */}
+          <ProductionTable lineId={lineId} />
         </div>
-      </main>
+      )}
     </div>
   );
 }

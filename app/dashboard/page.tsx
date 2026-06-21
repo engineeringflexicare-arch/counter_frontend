@@ -2,7 +2,7 @@
 
 import { LayoutDashboard, Activity, Clock3, Target } from "lucide-react";
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../../lib/api";
 
 import ProductionTable from "../components/ProductionTable";
 
@@ -35,8 +35,7 @@ export default function Dashboard() {
 
     const fetchDashboardData = async () => {
       try {
-        // 1. Lines දත්ත API එකෙන් ලබා ගැනීම
-        const linesRes = await axios.get(`${API_BASE_URL}/api/esp32/lines`);
+        const linesRes = await api.get(`/api/esp32/lines`);
         const linesData = linesRes.data.data || linesRes.data;
 
         if (!linesData) {
@@ -54,8 +53,7 @@ export default function Dashboard() {
           const line = lineValue as LineData;
           const machineId = line.machineId;
 
-          try {
-            const res = await axios.get(`${API_BASE_URL}/api/esp32/${machineId}/total-output`);
+            const res = await api.get(`/api/esp32/${machineId}/total-output`);
 
             if (res.data && res.data.success) {
               counts[machineId] = res.data.totalOutput || 0;

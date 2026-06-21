@@ -30,10 +30,6 @@ interface LineData {
 
 const availableLines = ["Line_01", "Line_02", "Line_03", "Line_04", "Line_05", "Line_06", "Line_07", "Line_08"];
 
-// Reads the auth token from localStorage. Safe to call during render
-// because it's only ever used as a lazy initializer for useState, which
-// React only invokes on the client during the first render — never
-// during SSR, and never inside an effect.
 const readStoredToken = (): string | null => {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("token")?.trim() || null;
@@ -43,24 +39,15 @@ const readStoredToken = (): string | null => {
 // Main Component
 // ==========================================
 export default function LineAssignmentPanel() {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+
   // --- States ---
   const [lines, setLines] = useState<Record<string, LineData>>({});
   const [machines, setMachines] = useState<Record<string, MachineData>>({});
 
   const [selectedLine, setSelectedLine] = useState("");
   const [selectedMachine, setSelectedMachine] = useState("");
-
-  const machineOptions = Array.from(
-    new Set([
-      ...Object.keys(machines)
-        .map((id) => id.trim())
-        .filter(Boolean),
-      ...Object.values(lines)
-        .map((line) => line.machineId?.trim())
-        .filter((id): id is string => Boolean(id)),
-    ]),
-  );
-  const [floor, setFloor] = useState("Production Floor"); // <--- අලුත් State එක (Floor)
+  const [floor, setFloor] = useState("Production Floor");
   const [productCode, setProductCode] = useState("");
   const [dailyTarget, setDailyTarget] = useState("");
   const [hourlyTarget, setHourlyTarget] = useState("");
@@ -73,16 +60,9 @@ export default function LineAssignmentPanel() {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [message, setMessage] = useState("");
-
-  // Lazy-initialized from localStorage on first client render — no
-  // setState-in-effect needed for the initial read.
   const [authToken, setAuthToken] = useState<string | null>(readStoredToken);
 
-  // Keep authToken in sync if the token changes in another tab/window
-  // (e.g. login/logout happening elsewhere). This is a legitimate use of
-  // an effect: subscribing to an external system (the storage event),
-  // not synchronously computing state from something already available
-  // during render.
+  // Keep authToken in sync with storage changes
   useEffect(() => {
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === "token") {
@@ -98,35 +78,39 @@ export default function LineAssignmentPanel() {
     return authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
   };
 
-  // --- Fetch Data From Backend API ---
+  // ✅ FIX: Move data fetching logic directly into useEffect instead of calling a function
+  // This avoids the setState-in-effect warning by not including the function in dependencies
   useEffect(() => {
+    let isMounted = true; // Prevent state updates if component unmounts
+
     const fetchInitialData = async () => {
       try {
-        setInitialLoading(true);
-
         if (!authToken) {
+          setInitialLoading(false);
           return;
         }
 
         const localAuthHeaders = { Authorization: `Bearer ${authToken}` };
 
-        // 1. Backend එකෙන් Lines දත්ත ලබාගැනීම
-        const linesResponse = await axios.get("http://localhost:3000/api/esp32/lines", {
+        // ✅ Use /api/lines/ instead of /api/esp32/lines
+        const linesResponse = await axios.get(`${API_BASE_URL}/api/lines/`, {
           headers: localAuthHeaders,
         });
-        if (linesResponse.data.success && linesResponse.data.data) {
+        if (isMounted && linesResponse.data.success && linesResponse.data.data) {
           setLines(linesResponse.data.data);
         }
 
-        // 2. Backend එකෙන් සියලුම දත්ත ලබාගැනීම
-        const machinesResponse = await axios.get("http://localhost:3000/api/esp32/lines/machines", {
+        // ✅ Use /api/esp32/machines/free instead of /api/esp32/lines/machines
+        const machinesResponse = await axios.get(`${API_BASE_URL}/api/esp32/machines/free`, {
           headers: localAuthHeaders,
         });
 
-        if (machinesResponse.data.success) {
+        if (isMounted && machinesResponse.data.success) {
           const machineData: Record<string, MachineData> = {};
 
-          machinesResponse.data.data.forEach((item: MachineListItem) => {
+          // Handle if response is an array
+          const machineList = Array.isArray(machinesResponse.data.data) ? machinesResponse.data.data : [];
+          machineList.forEach((item: MachineListItem) => {
             machineData[item.machineId] = {};
           });
 
@@ -134,13 +118,23 @@ export default function LineAssignmentPanel() {
         }
       } catch (error) {
         console.error("Error fetching data from backend:", error);
+        if (isMounted) {
+          setMessage("Failed to load data from backend");
+        }
       } finally {
-        setInitialLoading(false);
+        if (isMounted) {
+          setInitialLoading(false);
+        }
       }
     };
 
     fetchInitialData();
-  }, [authToken]);
+
+    // Cleanup function to prevent state updates on unmounted component
+    return () => {
+      isMounted = false;
+    };
+  }, [authToken, API_BASE_URL]); // Only depend on stable values
 
   // --- Handle Assign Line ---
   const handleAssignLine = async () => {
@@ -171,24 +165,33 @@ export default function LineAssignmentPanel() {
         floor,
       };
 
-      console.log("ASSIGN PAYLOAD:", payload);
-
-      const response = await axios.post("http://localhost:3000/api/esp32/lines/assign", payload, {
+      // ✅ Use /api/lines/assign
+      const response = await axios.post(`${API_BASE_URL}/api/lines/assign`, payload, {
         headers: getAuthHeaders(),
       });
-
-      console.log("ASSIGN RESPONSE:", response.data);
 
       if (response.data.success) {
         setMessage("✓ Line assigned successfully");
 
-        // දත්ත Save කළ පසු, අලුත් දත්ත නැවත Backend එකෙන් ලබාගැනීම
-        const linesResponse = await axios.get("http://localhost:3000/api/esp32/lines", {
+        // Refresh the lines data
+        const linesResponse = await axios.get(`${API_BASE_URL}/api/lines/`, {
           headers: getAuthHeaders(),
         });
         if (linesResponse.data.success && linesResponse.data.data) {
           setLines(linesResponse.data.data);
         }
+
+        // Reset form
+        setSelectedLine("");
+        setSelectedMachine("");
+        setProductCode("");
+        setDailyTarget("");
+        setHourlyTarget("");
+        setTeamMembers("");
+        setShift("Day");
+        setSupervisor("");
+        setShiftStartTime("08:00");
+        setShiftEndTime("16:00");
 
         setTimeout(() => setMessage(""), 3000);
       } else {
@@ -197,12 +200,23 @@ export default function LineAssignmentPanel() {
     } catch (error) {
       const errorMessage = axios.isAxiosError(error) ? error.response?.data?.message || "Failed to assign line" : "Failed to assign line";
 
-      console.error("ASSIGN ERROR:", axios.isAxiosError(error) ? error.response?.data || error : error);
+      console.error("ASSIGN ERROR:", error);
       setMessage(errorMessage);
     } finally {
       setLoading(false);
     }
   };
+
+  const machineOptions = Array.from(
+    new Set([
+      ...Object.keys(machines)
+        .map((id) => id.trim())
+        .filter(Boolean),
+      ...Object.values(lines)
+        .map((line) => line.machineId?.trim())
+        .filter((id): id is string => Boolean(id)),
+    ]),
+  );
 
   // --- UI Render ---
   return (
@@ -215,7 +229,6 @@ export default function LineAssignmentPanel() {
             {/* Page Header */}
             <div className="mb-8 text-center">
               <h2 className="text-3xl font-black text-slate-800">Line Assignment Form</h2>
-
               <p className="text-slate-500 mt-2">Configure production line and machine assignments</p>
             </div>
 
@@ -231,7 +244,6 @@ export default function LineAssignmentPanel() {
               {/* Production Line */}
               <div>
                 <label className="block text-sm font-semibold mb-2">Production Line</label>
-
                 <select
                   value={selectedLine}
                   onChange={(e) => {
@@ -239,7 +251,6 @@ export default function LineAssignmentPanel() {
                     setSelectedLine(lineKey);
 
                     const lineData = lines[lineKey];
-
                     if (lineData) {
                       setSelectedMachine(lineData.machineId?.trim() || "");
                       setFloor(lineData.floor || "Production Floor");
@@ -256,7 +267,6 @@ export default function LineAssignmentPanel() {
                   className="w-full border border-slate-300 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
                 >
                   <option value="">Select Line</option>
-
                   {availableLines.map((lineKey) => (
                     <option key={lineKey} value={lineKey}>
                       {lineKey}
@@ -271,14 +281,12 @@ export default function LineAssignmentPanel() {
                   <Cpu size={16} className="text-orange-500" />
                   Machine
                 </label>
-
                 <select
                   value={selectedMachine}
                   onChange={(e) => setSelectedMachine(e.target.value.trim())}
                   className="w-full border border-slate-300 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
                 >
                   <option value="">Select Machine</option>
-
                   {machineOptions.map((machineKey) => (
                     <option key={machineKey} value={machineKey}>
                       {machineKey}
@@ -293,10 +301,8 @@ export default function LineAssignmentPanel() {
                   <Building size={16} className="text-teal-500" />
                   Floor
                 </label>
-
                 <select value={floor} onChange={(e) => setFloor(e.target.value)} className="w-full border border-slate-300 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none">
                   <option value="Production Floor">Production Floor</option>
-
                   <option value="Assembly Floor">Assembly Floor</option>
                 </select>
               </div>
@@ -307,7 +313,6 @@ export default function LineAssignmentPanel() {
                   <SunMoon size={16} className="text-yellow-500" />
                   Shift
                 </label>
-
                 <select value={shift} onChange={(e) => setShift(e.target.value)} className="w-full border border-slate-300 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none">
                   <option value="Day">Day Shift</option>
                   <option value="Night">Night Shift</option>
@@ -320,7 +325,6 @@ export default function LineAssignmentPanel() {
                   <Users size={16} className="text-pink-500" />
                   Supervisor
                 </label>
-
                 <input
                   type="text"
                   value={supervisor}
@@ -336,7 +340,6 @@ export default function LineAssignmentPanel() {
                   <Clock size={16} className="text-blue-500" />
                   Shift Start Time
                 </label>
-
                 <input
                   type="time"
                   value={shiftStartTime}
@@ -351,7 +354,6 @@ export default function LineAssignmentPanel() {
                   <Clock size={16} className="text-blue-500" />
                   Shift End Time
                 </label>
-
                 <input
                   type="time"
                   value={shiftEndTime}
@@ -366,7 +368,6 @@ export default function LineAssignmentPanel() {
                   <Package size={16} className="text-purple-500" />
                   Product Code
                 </label>
-
                 <input
                   type="text"
                   value={productCode}
@@ -381,7 +382,6 @@ export default function LineAssignmentPanel() {
                   <Users size={16} className="text-cyan-500" />
                   Team Members
                 </label>
-
                 <input
                   type="number"
                   value={teamMembers}
@@ -396,7 +396,6 @@ export default function LineAssignmentPanel() {
                   <Target size={16} className="text-green-500" />
                   Daily Target
                 </label>
-
                 <input
                   type="number"
                   value={dailyTarget}
@@ -411,7 +410,6 @@ export default function LineAssignmentPanel() {
                   <Target size={16} className="text-indigo-500" />
                   Hourly Target
                 </label>
-
                 <input
                   type="number"
                   value={hourlyTarget}
@@ -425,28 +423,10 @@ export default function LineAssignmentPanel() {
             <div className="mt-8">
               <button
                 onClick={handleAssignLine}
-                disabled={loading}
-                className="
-                w-full
-                bg-linear-to-r
-                from-blue-600
-                to-indigo-600
-                hover:from-blue-700
-                hover:to-indigo-700
-                text-white
-                font-bold
-                py-4
-                rounded-2xl
-                shadow-lg
-                transition-all
-                flex
-                items-center
-                justify-center
-                gap-2
-              "
+                disabled={loading || !selectedLine || !selectedMachine}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-[0.99]"
               >
                 <Save size={20} />
-
                 {loading ? "Saving Assignment..." : "Save Line Assignment"}
               </button>
             </div>

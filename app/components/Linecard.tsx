@@ -1,7 +1,8 @@
 "use client";
 
-import axios from "axios";
+import api from "../../lib/api";
 import { useEffect, useState } from "react";
+import MachineHealthBadge, { MachineHealth } from "./MachineHealthBadge";
 
 interface LineCardProps {
   line: string;
@@ -9,12 +10,12 @@ interface LineCardProps {
   machine: string;
   target: number;
   current: number;
+  health?: MachineHealth;
 }
 
-export default function LineCard({ line, product, machine, target: propTarget, current: propCurrent }: LineCardProps) {
+export default function LineCard({ line, product, machine, target: propTarget, current: propCurrent, health }: LineCardProps) {
   const [target, setTarget] = useState(propTarget);
   const [current, setCurrent] = useState(propCurrent);
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
   useEffect(() => {
     // Machine ID එකක් නැත්නම් request එක යවන්නේ නැතිවෙන්න
@@ -22,7 +23,7 @@ export default function LineCard({ line, product, machine, target: propTarget, c
 
     const fetchLiveMetrics = async () => {
       try {
-        const res = await axios.get(`${API_BASE_URL}/api/esp32/metrics/${machine}`);
+        const res = await api.get(`/api/esp32/metrics/${machine}`);
 
         if (res.data?.success) {
           setCurrent(res.data.data.current || 0);
@@ -41,7 +42,7 @@ export default function LineCard({ line, product, machine, target: propTarget, c
     const interval = setInterval(fetchLiveMetrics, 3000);
 
     return () => clearInterval(interval);
-  }, [API_BASE_URL, machine]);
+  }, [machine]);
 
   const percentage = target > 0 ? Math.min((current / target) * 100, 100) : 0;
 
@@ -76,6 +77,12 @@ export default function LineCard({ line, product, machine, target: propTarget, c
           <span className="font-bold text-green-600">{current}</span>
         </div>
       </div>
+
+      {health && (
+        <div className="mt-2">
+          <MachineHealthBadge health={health} />
+        </div>
+      )}
 
       {/* Progress */}
       <div className="mt-2">

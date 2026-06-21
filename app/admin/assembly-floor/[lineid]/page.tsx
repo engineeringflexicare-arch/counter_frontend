@@ -6,7 +6,6 @@ import ProductionTable from "@/app/components/ProductionTable";
 import ProductionGapChart from "@/app/components/ProductionGapChart";
 import CumulativeChart from "@/app/components/CumulativeChart";
 import LineOverviewCard from "@/app/components/LineOverviewCard";
-import Loader from "@/app/components/Loader";
 
 interface PageProps {
   params: Promise<{
@@ -36,8 +35,7 @@ export default function Page({ params }: PageProps) {
     const fetchLineDetails = async () => {
       try {
         setLoading(true);
-        // "/api/esp32/lines/:lineId" කියන endpoint එක backend එකේ නැහැ (404).
-        // Single line එකක් ලබාගන්න endpoint එක LineRouter එකේ "/api/lines/:lineId" කියලා.
+        // සාමාන්‍ය fetch වෙනුවට අපි හදාගත් 'api' එක භාවිත කිරීම (Token එක යැවීමට)
         const lineRes = await api.get(`/api/lines/${lineId}`);
 
         if (lineRes.data?.success) {
@@ -86,7 +84,10 @@ export default function Page({ params }: PageProps) {
   if (loading) {
     return (
       <div className="bg-neutral-50 w-full min-h-screen p-4 flex items-center justify-center">
-        <Loader />
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-300 border-t-blue-600"></div>
+          <p className="text-slate-500 font-medium">Loading {lineId} Details...</p>
+        </div>
       </div>
     );
   }

@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { Save, Cpu, Package, Target, Users, SunMoon, Building, Calendar, Settings, Clock } from "lucide-react";
-import axios from "axios";
+import api from "@/lib/api";
+import Loader from "@/app/components/Loader";
 
 // 1. අලුත් Interface එක
 interface LineData {
@@ -58,7 +59,7 @@ export default function SupervisorLineUpdatePanel() {
         setInitialLoading(true);
         const token = localStorage.getItem("token");
 
-        const linesRes = await axios.get(`${API_BASE_URL}/api/esp32/lines`, {
+        const linesRes = await api.get(`${API_BASE_URL}/api/lines`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -66,7 +67,7 @@ export default function SupervisorLineUpdatePanel() {
           setLines(linesRes.data.data);
         }
 
-        const machinesRes = await axios.get(`${API_BASE_URL}/api/esp32/free-counters`, {
+        const machinesRes = await api.get(`${API_BASE_URL}/api/esp32/free-counters`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -118,7 +119,7 @@ export default function SupervisorLineUpdatePanel() {
         totalProductCount: Number(dailyProduction) || 0,
       };
 
-      const response = await axios.put(`${API_BASE_URL}/api/esp32/lines/update-line`, payload, {
+      const response = await api.put(`${API_BASE_URL}/api/lines/update-line`, payload, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -130,15 +131,12 @@ export default function SupervisorLineUpdatePanel() {
           setMessage("");
         }, 3000);
       }
-    } catch (error: unknown) {
-      if (axios.isAxiosError(error)) {
-        setMessage(error.response?.data?.message || "Failed to update line details.");
-      } else {
-        setMessage("Failed to update line details.");
-      }
-    } finally {
-      setLoading(false);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      setMessage(error?.response?.data?.message || "Failed to update line details.");
     }
+
+    setLoading(false);
   };
 
   const filteredLines = Object.entries(lines).filter(([, line]) => {
@@ -163,7 +161,7 @@ export default function SupervisorLineUpdatePanel() {
 
       {initialLoading ? (
         <div className="py-16 flex flex-col items-center justify-center space-y-4">
-          <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent"></div>
+          <Loader />
           <p className="text-slate-500 font-semibold animate-pulse">Loading Your Lines...</p>
         </div>
       ) : (

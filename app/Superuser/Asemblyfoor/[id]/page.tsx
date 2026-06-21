@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
-import axios from "axios";
+import api from "@/lib/api"; // raw axios + hardcoded API_BASE_URL වෙනුවට shared api instance එක
 import ProductionTable from "@/app/components/ProductionTable";
 import ProductionGapChart from "@/app/components/ProductionGapChart";
 import CumulativeChart from "@/app/components/CumulativeChart";
@@ -29,14 +29,12 @@ export default function LinePage({ params }: PageProps) {
   const [dailyTarget, setDailyTarget] = useState(4300);
   const [cumulativeChartData, setCumulativeChartData] = useState<{ time: string; cumulative: number }[]>([]);
 
-  // නිවැරදි කළ නම: NEXT_PUBLIC_API_BASE_URL
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
-
   useEffect(() => {
     const fetchData = async () => {
       try {
         // 1. Line details ලබා ගැනීම
-        const lineRes = await axios.get(`${API_BASE_URL}/api/esp32/lines/${lineId}`);
+        // "/api/esp32/lines/:id" කියන endpoint එක නැහැ (404) — "/api/lines/:id" තමයි ඇත්තටම තියෙන්නේ.
+        const lineRes = await api.get(`/api/lines/${lineId}`);
 
         let currentMachineId = "Machine_01";
         if (lineRes.data?.success) {
@@ -46,7 +44,7 @@ export default function LinePage({ params }: PageProps) {
         }
 
         // 2. තෝරාගත් දිනයට (selectedDate) අදාළව Hourly Production Data ලබා ගැනීම
-        const res = await axios.get(`${API_BASE_URL}/api/esp32/hourly-production/${currentMachineId}?date=${selectedDate}`);
+        const res = await api.get(`/api/esp32/hourly-production/${currentMachineId}?date=${selectedDate}`);
 
         if (res.data?.success && Array.isArray(res.data.hourlyData)) {
           let cumulative = 0;
@@ -62,7 +60,7 @@ export default function LinePage({ params }: PageProps) {
     };
 
     fetchData();
-  }, [lineId, selectedDate, API_BASE_URL]);
+  }, [lineId, selectedDate]);
 
   return (
     <div className="bg-neutral-50 w-full min-h-screen p-4">
