@@ -127,7 +127,7 @@ export default function Page({ params }: PageProps) {
           </div>
 
           {/* Production Table */}
-          <ProductionTable lineId={lineId} />
+          <ProductionTable lineId={lineId} linesData={[]} />
         </div>
       )}
     </div>
