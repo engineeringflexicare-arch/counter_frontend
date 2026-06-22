@@ -44,22 +44,37 @@ const CustomTooltip = ({ active, payload, label, daily }: CustomTooltipProps) =>
 };
 
 export default function CumulativeChart({ machineId, cumulativeData, daily, date }: CumulativeChartProps) {
-  // 1. අද දිනයද යන්න පරීක්ෂා කිරීම සහ දැනට පවතින පැය හඳුනා ගැනීම
+  // 1. අද දිනයද යන්න පරීක්ෂා කිරීම
   const today = new Date();
   const formattedToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   const isToday = !date || date === formattedToday;
 
-  const currentHour = today.getHours();
-  const currentRange = `${String(currentHour).padStart(2, "0")}:00-${String((currentHour + 1) % 24).padStart(2, "0")}:00`;
+  // වර්තමාන වේලාව විනාඩි වලින් ගණනය කිරීම
+  const currentMins = today.getHours() * 60 + today.getMinutes();
 
-  // 2. අනාගත කාල පරාසයන්හි අගයන් null බවට පත් කිරීම (ESLint Error එක විසඳා ඇත)
-  const currentRangeIndex = cumulativeData.findIndex((d) => d.time === currentRange);
+  // 2. අනාගත කාල පරාසයන්හි අගයන් null බවට පත් කිරීම (100% Dynamic Logic)
+  const displayData = cumulativeData.map((d) => {
+    if (!isToday) return d; // අද දිනය නොවේ නම් සියලු දත්ත පෙන්වයි
 
-  const displayData = cumulativeData.map((d, index) => {
-    // අද දිනය නම් සහ, පවතින වේලාවට (currentRangeIndex) වඩා ඉදිරියෙන් ඇති දත්ත නම් null කරයි
-    if (isToday && currentRangeIndex !== -1 && index > currentRangeIndex) {
+    if (!d.time || !d.time.includes("-")) return d;
+
+    const [startStr] = d.time.split("-");
+    const [sh, sm] = startStr.split(":").map(Number);
+    const startMins = sh * 60 + (sm || 0);
+
+    const adjustedStart = startMins;
+    let adjustedCurrent = currentMins;
+
+    // Overnight Shifts සඳහා ගැලපීම (අද පාන්දර නම් ඊයේ රාත්‍රියට වඩා ඉදිරියට ගෙන යාම)
+    if (adjustedCurrent < adjustedStart && adjustedStart - adjustedCurrent > 12 * 60) {
+      adjustedCurrent += 24 * 60;
+    }
+
+    // පවතින වේලාවට වඩා Bucket එක ආරම්භ වන වේලාව අනාගතයේ නම්, එම දත්තය null කරන්න
+    if (adjustedStart > adjustedCurrent) {
       return { ...d, cumulative: null };
     }
+
     return d;
   });
 
@@ -97,7 +112,7 @@ export default function CumulativeChart({ machineId, cumulativeData, daily, date
       <div className="flex flex-wrap gap-3 mb-6">
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
           <p className="text-[10px] uppercase text-slate-500 font-bold">Current Output</p>
-          <p className="text-[10px]lg:text-2xl font-black text-indigo-600">{currentOutput}</p>
+          <p className="text-[10px] lg:text-2xl font-black text-indigo-600">{currentOutput}</p>
         </div>
 
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">

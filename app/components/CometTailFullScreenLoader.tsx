@@ -36,7 +36,7 @@ export function CometTailFullScreenLoader() {
 
         {/* 3. Center Logo */}
         <div className="relative z-10 w-28 h-28 bg-white rounded-full flex items-center justify-center shadow-2xl border-2 border-blue-100">
-          <Image src="/logo.png" alt="Flexicare Logo" width={80} height={80} className="object-contain" />
+          <Image src="/logo.png" alt="Flexicare Logo" style={{ width: "auto", height: "auto" }} width={80} height={80} className="object-contain" />
         </div>
       </div>
 

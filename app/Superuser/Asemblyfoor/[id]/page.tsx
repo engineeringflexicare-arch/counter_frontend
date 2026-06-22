@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
-import api from "@/lib/api"; // raw axios + hardcoded API_BASE_URL වෙනුවට shared api instance එක
+import { useEffect, useState, use } from "react";
+import api from "@/lib/api";
 import ProductionTable from "@/app/components/ProductionTable";
 import ProductionGapChart from "@/app/components/ProductionGapChart";
 import CumulativeChart from "@/app/components/CumulativeChart";
 import LineOverviewCard from "@/app/components/LineOverviewCard";
+import Loader from "@/app/components/Loader";
 
 interface PageProps {
   params: Promise<{
-    id: string; // ඔයාගේ ෆෝල්ඩර් නම [id] නිසා මෙහි id ලෙස තිබිය යුතුය
+    lineId: string;
   }>;
 }
 
@@ -18,83 +19,158 @@ interface HourlyItem {
   output: number;
 }
 
-export default function LinePage({ params }: PageProps) {
-  const resolvedParams = use(params);
-  const lineId = resolvedParams.id;
+// ✅ FIX: ProductionTable component eka "linesData" array ekak expect karanawa
+// (Assembly Floor page eke double-fetch issue eka solve karapu welawe danapu
+// pattern ekata samana widihata). Mehe page eke already "/api/lines/:lineId"
+// eken ganna line object eka me shape ekata match wenawa.
+interface LineApiData {
+  lineId?: string;
+  floor?: string;
+  machineId?: string;
+  shift?: string;
+  productCode?: string;
+  plannedMembers?: number;
+  hourlyTarget?: number;
+  dailyTarget?: number;
+  shiftStartTime?: string;
+  shiftEndTime?: string;
+}
 
+export default function Page({ params }: PageProps) {
+  const resolvedParams = use(params);
+  const lineId = resolvedParams.lineId;
+
+  // 📅 අද දිනය ලබා ගැනීම සහ Date State එක හැදීම (අලුතින් එකතු කළ කොටස)
   const today = new Date().toISOString().split("T")[0];
   const [selectedDate, setSelectedDate] = useState(today);
 
-  const [machineId, setMachineId] = useState("Machine_01");
-  const [dailyTarget, setDailyTarget] = useState(4300);
+  const [machineId, setMachineId] = useState<string | null>(null);
+  const [dailyTarget, setDailyTarget] = useState<number>(0);
+  // ✅ FIX: Fetch කරපු line object එක මෙතන තියාගෙන, "/api/lines" දෙවෙනි වරක්
+  // call නොකර ProductionTable එකට array ලෙස pass කරනවා.
+  const [lineData, setLineData] = useState<LineApiData | null>(null);
   const [cumulativeChartData, setCumulativeChartData] = useState<{ time: string; cumulative: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    const fetchData = async () => {
+    let isMounted = true;
+
+    const fetchLineDetails = async () => {
       try {
-        // 1. Line details ලබා ගැනීම
-        // "/api/esp32/lines/:id" කියන endpoint එක නැහැ (404) — "/api/lines/:id" තමයි ඇත්තටම තියෙන්නේ.
+        setLoading(true);
         const lineRes = await api.get(`/api/lines/${lineId}`);
 
-        let currentMachineId = "Machine_01";
         if (lineRes.data?.success) {
-          currentMachineId = lineRes.data.data?.machineId || "Machine_01";
-          setMachineId(currentMachineId);
-          setDailyTarget(lineRes.data.data?.dailyTarget || 4300);
-        }
+          const fetchedLine: LineApiData = lineRes.data.data || {};
+          const fetchedMachineId = fetchedLine.machineId;
+          const target = fetchedLine.dailyTarget || 0;
 
-        // 2. තෝරාගත් දිනයට (selectedDate) අදාළව Hourly Production Data ලබා ගැනීම
-        const res = await api.get(`/api/esp32/hourly-production/${currentMachineId}?date=${selectedDate}`);
+          if (isMounted) {
+            setMachineId(fetchedMachineId || null);
+            setDailyTarget(target);
+            setLineData({ ...fetchedLine, lineId });
+          }
 
-        if (res.data?.success && Array.isArray(res.data.hourlyData)) {
-          let cumulative = 0;
-          const chartData = res.data.hourlyData.map((item: HourlyItem) => {
-            cumulative += item.output;
-            return { time: item.hour, cumulative };
-          });
-          setCumulativeChartData(chartData);
+          // Machine ID එකක් තියෙනවා නම් අදාළ දිනයට (selectedDate) දත්ත ලබා ගැනීම
+          if (fetchedMachineId) {
+            const prodRes = await api.get(`/api/esp32/hourly-production/${fetchedMachineId}?date=${selectedDate}`);
+
+            if (prodRes.data?.success && Array.isArray(prodRes.data.hourlyData)) {
+              let cumulative = 0;
+              const chartData = prodRes.data.hourlyData.map((item: HourlyItem) => {
+                cumulative += item.output;
+                return {
+                  time: item.hour,
+                  cumulative,
+                };
+              });
+              if (isMounted) setCumulativeChartData(chartData);
+            } else {
+              // අදාළ දවසට දත්ත නැත්නම් Chart එක හිස් කිරීම
+              if (isMounted) setCumulativeChartData([]);
+            }
+          }
+        } else {
+          if (isMounted) setError(true);
         }
-      } catch (error) {
-        console.error("Error fetching line data:", error);
+      } catch (err) {
+        console.error("Error fetching line details:", err);
+        if (isMounted) setError(true);
+      } finally {
+        if (isMounted) setLoading(false);
       }
     };
 
-    fetchData();
-  }, [lineId, selectedDate]);
+    fetchLineDetails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [lineId, selectedDate]); // 👈 selectedDate වෙනස් වන විට නැවත දත්ත ලබා ගනී
+
+  if (loading) {
+    return (
+      <div className="bg-neutral-50 w-full min-h-screen p-4 flex items-center justify-center">
+        <Loader />
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-neutral-50 w-full min-h-screen p-4">
-      {/* Header & Date Picker */}
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-        <h1 className="text-2xl font-extrabold text-slate-800">{lineId.replaceAll("_", " ")} Overview</h1>
+    <div className="bg-neutral-50 w-full min-h-screen p-4 md:p-8">
+      {/* 📅 Title සහ Date Picker එක */}
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 gap-4">
+        <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">{lineId.replaceAll("_", " ")} Overview</h1>
 
-        <div className="flex items-center gap-3 bg-white p-2 px-4 rounded-lg shadow-sm border border-slate-200">
-          <label htmlFor="line-date" className="text-sm font-semibold text-slate-600">
+        <div className="flex items-center gap-3 bg-white p-2 px-4 rounded-xl shadow-sm border border-slate-200">
+          <label htmlFor="date" className="text-sm font-semibold text-slate-500">
             Select Date:
           </label>
-          <input type="date" id="line-date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="text-sm text-slate-800 outline-none cursor-pointer bg-transparent" />
+          <input
+            type="date"
+            id="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="text-sm font-medium text-slate-800 outline-none cursor-pointer bg-transparent"
+          />
         </div>
       </div>
 
-      {/* Top Section */}
-      <div className="flex gap-4 items-start mb-4">
-        <div className="flex-1">
-          <LineOverviewCard lineId={lineId} />
+      {!machineId || error ? (
+        <div className="bg-red-50 text-red-600 p-6 rounded-2xl border border-red-200 text-center shadow-sm">
+          <p className="font-bold text-lg">Line Data Not Found</p>
+          <p className="text-sm mt-2 opacity-80">Unable to load machine details for {lineId}. Please check the database connection or line configurations.</p>
         </div>
-      </div>
+      ) : (
+        <div className="animate-fade-in-up space-y-6">
+          {/* Top Section */}
+          <div className="w-full">
+            <LineOverviewCard lineId={lineId} />
+          </div>
 
-      {/* Cumulative Chart */}
-      <div className="mb-4">
-        <CumulativeChart machineId={machineId} cumulativeData={cumulativeChartData} daily={dailyTarget} />
-      </div>
+          {/* Cumulative Chart */}
+          {cumulativeChartData.length > 0 ? (
+            <div className="w-full">
+              <CumulativeChart machineId={machineId} cumulativeData={cumulativeChartData} daily={dailyTarget} />
+            </div>
+          ) : (
+            <div className="w-full bg-white border border-slate-200 p-8 rounded-2xl text-center shadow-sm">
+              <p className="text-slate-500 font-medium">No cumulative production data available for {selectedDate}.</p>
+            </div>
+          )}
 
-      {/* Gap Analysis */}
-      <div className="mb-4">
-        <ProductionGapChart lineId={lineId} date={selectedDate} />
-      </div>
+          {/* Gap Analysis (Date එක පාස් කර ඇත) */}
+          <div className="w-full">
+            <ProductionGapChart lineId={lineId} date={selectedDate} />
+          </div>
 
-      {/* Production Table */}
-      <ProductionTable lineId={lineId} date={selectedDate} />
+          {/* Production Table (Date එක පාස් කර ඇත) */}
+          <div className="w-full">
+            <ProductionTable linesData={lineData ? [lineData] : []} floor={lineData?.floor} lineId={lineId} date={selectedDate} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

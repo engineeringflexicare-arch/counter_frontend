@@ -39,6 +39,7 @@ export default function Page({ params }: PageProps) {
         // "/api/esp32/lines/:lineId" කියන endpoint එක backend එකේ නැහැ (404).
         // Single line එකක් ලබාගන්න endpoint එක LineRouter එකේ "/api/lines/:lineId" කියලා.
         const lineRes = await api.get(`/api/lines/${lineId}`);
+        console.log("LINE DETAILS API", lineRes.data);
 
         if (lineRes.data?.success) {
           const fetchedMachineId = lineRes.data.data?.machineId;
@@ -126,7 +127,7 @@ export default function Page({ params }: PageProps) {
           </div>
 
           {/* Production Table */}
-          <ProductionTable lineId={lineId} />
+          <ProductionTable lineId={lineId} linesData={[]} />
         </div>
       )}
     </div>

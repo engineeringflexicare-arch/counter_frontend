@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import api from "@/lib/api"; // සාමාන්‍ය axios වෙනුවට අපේ custom api එක import කරගැනීම
+import api from "@/lib/api";
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ReferenceLine } from "recharts";
 
 interface ProductionGapChartProps {
@@ -53,8 +53,6 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
 export default function ProductionGapChart({ lineId, date }: ProductionGapChartProps) {
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [averageGap, setAverageGap] = useState(0);
-
-  // Component එක mount වෙනකොටම loading state එක තීරණය කිරීම (ESLint fix)
   const [loading, setLoading] = useState(!!lineId && lineId !== "undefined");
 
   const maxGap = useMemo(() => {
@@ -80,21 +78,18 @@ export default function ProductionGapChart({ lineId, date }: ProductionGapChartP
   }, [maxGap, averageGap]);
 
   useEffect(() => {
-    // lineId එක නැත්නම් මෙතනින්ම return වෙනවා, setState අවශ්‍ය නැත. (ESLint fix)
     if (!lineId || lineId === "undefined") {
       return;
     }
 
     const fetchData = async () => {
       try {
-        // api instance එකේ baseURL සකසා ඇති බැවින් relative URL පමණක් ප්‍රමාණවත්ය
         let url = `/api/esp32/production-gaps?lineId=${lineId}`;
 
         if (date) {
           url += `&date=${date}`;
         }
 
-        // axios වෙනුවට api භාවිතා කිරීම
         const response = await api.get<ApiResponse>(url);
 
         if (response.data?.success) {
@@ -145,14 +140,17 @@ export default function ProductionGapChart({ lineId, date }: ProductionGapChartP
       </div>
 
       {loading && chartData.length === 0 ? (
-        <div className="h-75 w-full bg-slate-100 animate-pulse rounded-xl" />
+        // ⚠️ h-75 ඉවත් කර h-64 යොදා ඇත
+        <div className="h-64 w-full bg-slate-100 animate-pulse rounded-xl" />
       ) : chartData.length === 0 ? (
-        <div className="h-75 w-full flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
+        // ⚠️ h-75 ඉවත් කර h-64 යොදා ඇත
+        <div className="h-64 w-full flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
           <p className="text-slate-500 font-medium">No Production Gap Data Available for this Line</p>
         </div>
       ) : (
         <div className="w-full min-w-0 h-64">
-          <ResponsiveContainer height="100%" width="100%">
+          {/* ⚠️ height="100%" වෙනුවට height={256} භාවිතා කර ඇත (-1 error එක වැළැක්වීමට) */}
+          <ResponsiveContainer width="100%" height={256}>
             <LineChart data={chartData} margin={{ top: 20, right: 20, bottom: 20, left: 10 }}>
               <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="time" dy={10} minTickGap={40} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />

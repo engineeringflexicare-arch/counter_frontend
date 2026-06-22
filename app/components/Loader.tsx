@@ -54,7 +54,7 @@ export default function Loader() {
             height={80}
             className="object-contain"
             // මෙතන තිබුණු pulse animation එක ඉවත් කර spin animation එක ලබා දී ඇත
-            style={{ animation: `spin ${logoSpeed} linear infinite` }}
+            style={{ animation: `spin ${logoSpeed} linear infinite`, width: "auto", height: "auto" }}
           />
         </div>
       </div>

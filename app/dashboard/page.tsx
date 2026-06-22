@@ -189,7 +189,7 @@ export default function Dashboard() {
           <p className="text-sm text-gray-300 mt-1">Real-time production tracking by line</p>
         </div>
         <div className="p-4">
-          <ProductionTable />
+          <ProductionTable linesData={[]} />
         </div>
       </div>
     </div>

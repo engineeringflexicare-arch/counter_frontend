@@ -58,7 +58,6 @@ export default function LoginPage() {
       document.cookie = `token=${token}; path=/; max-age=28800; samesite=strict`;
       document.cookie = `userRole=${finalRole}; path=/; max-age=28800; samesite=strict`;
 
-
       // Redirect after 1s
       setTimeout(() => {
         switch (finalRole) {
@@ -113,7 +112,7 @@ export default function LoginPage() {
                 <h2 className="text-3xl font-bold text-slate-900 mb-2">Welcome to Flexicare</h2>
                 <p className="text-slate-500 text-sm">Sign in to your Flexicare account</p>
                 <div className="w-20 h-20 bg-white rounded-full shadow-lg flex items-center justify-center border border-slate-200">
-                  <Image src="/logo.png" alt="Flexicare Logo" width={80} height={80} className="object-contain justify-center rounded-full mt-1 p-2" />
+                  <Image src="/logo.png" alt="Flexicare Logo" width={80} height={80} style={{ width: "auto", height: "auto" }} className="object-contain justify-center rounded-full mt-1 p-2" />
                 </div>
               </div>
 

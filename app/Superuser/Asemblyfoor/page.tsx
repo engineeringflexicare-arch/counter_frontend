@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
-import { Factory, Target, Package, Gauge, Activity } from "lucide-react";
+import { Factory, Target, Package, Gauge, Activity, Search } from "lucide-react";
 import ProductionTable from "@/app/components/ProductionTable";
 import ProductionGapChart from "@/app/components/ProductionGapChart";
 import CumulativeChart from "@/app/components/CumulativeChart";
@@ -10,7 +10,6 @@ import LineOverviewCard from "@/app/components/LineOverviewCard";
 import LineCard from "@/app/components/Linecard";
 import Loader from "@/app/components/Loader";
 
-// දත්ත වල හැඩය (Interface)
 interface LineData {
   lineId: string;
   machineId?: string;
@@ -26,44 +25,76 @@ interface HourlyItem {
   output: number;
 }
 
+const FLOOR_NAME = "Assembly Floor";
+const REFRESH_INTERVAL = 300000; // විනාඩි 5කට වරක් (5 * 60 * 1000)
+
 export default function AssemblyFloorPage() {
   const today = new Date().toISOString().split("T")[0];
+
+  const [inputDate, setInputDate] = useState(today);
   const [selectedDate, setSelectedDate] = useState(today);
 
-  // States
   const [lines, setLines] = useState<LineData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // මුල්ම පාරට පමණක් Load වීමට
   const [selectedLine, setSelectedLine] = useState<LineData | null>(null);
   const [cumulativeChartData, setCumulativeChartData] = useState<{ time: string; cumulative: number }[]>([]);
   const [floorTotalOutput, setFloorTotalOutput] = useState(0);
 
-  const FLOOR_NAME = "Assembly_Floor";
-
-  // 1. Assembly Floor එකට අදාළ Lines ලබා ගැනීම
+  // 1. Initial Load & Background Polling for Lines and Floor Total
   useEffect(() => {
-    const fetchLines = async () => {
-      try {
-        setLoading(true);
-        const res = await api.get("/api/lines");
-        const data: LineData[] = res.data?.data || [];
+    let isMounted = true;
 
-        if (Array.isArray(data)) {
-          const linesArray = data.filter((line) => line.floor === FLOOR_NAME || !line.floor);
-          setLines(linesArray);
+    const fetchAllFloorData = async (isInitialLoad = false) => {
+      if (isInitialLoad) setLoading(true);
+
+      try {
+        // පළමුව Lines ටික ගන්නවා
+        const lineRes = await api.get("/api/lines");
+        const linesData: LineData[] = lineRes.data?.data || [];
+        const filteredLines = linesData.filter((line) => line.floor === FLOOR_NAME || !line.floor);
+
+        if (isMounted) setLines(filteredLines);
+
+        // Lines ගත්තට පස්සේ ඒ අදාළ Machines වල Total එක එකවර ගන්නවා (Promise.all)
+        const machineIds = filteredLines.map((l) => l.machineId).filter((id): id is string => Boolean(id));
+
+        if (machineIds.length > 0) {
+          const totalResults = await Promise.all(
+            machineIds.map(async (machineId) => {
+              try {
+                const res = await api.get(`/api/esp32/hourly-production/${machineId}?date=${selectedDate}`);
+                return res.data?.success ? res.data.totalOutput || 0 : 0;
+              } catch {
+                return 0;
+              }
+            }),
+          );
+          if (isMounted) {
+            setFloorTotalOutput(totalResults.reduce((sum, n) => sum + n, 0));
+          }
+        } else {
+          if (isMounted) setFloorTotalOutput(0);
         }
       } catch (err) {
-        console.error("Error fetching lines:", err);
+        console.error("Error fetching floor data:", err);
       } finally {
-        setLoading(false);
+        if (isInitialLoad && isMounted) setLoading(false);
       }
     };
 
-    fetchLines();
-    const interval = setInterval(fetchLines, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    fetchAllFloorData(true); // පළමු වතාවේදී Loader එක පෙන්වයි
 
-  // 2. Line එකක් Select කළ පසු Cumulative Chart දත්ත ලබා ගැනීම
+    const interval = setInterval(() => {
+      fetchAllFloorData(false); // මෙතැන් පටන් Background එකේ Fetch වෙයි (Loader එක පෙන්වන්නේ නැත)
+    }, REFRESH_INTERVAL);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [selectedDate]);
+
+  // 2. Fetch Detailed Data for Selected Line
   useEffect(() => {
     if (!selectedLine?.machineId) return;
 
@@ -85,45 +116,11 @@ export default function AssemblyFloorPage() {
     };
 
     fetchCumulativeData();
-    const interval = setInterval(fetchCumulativeData, 30000);
+
+    // තෝරාගත් Line එකත් යාවත්කාලීන වීම (Background Refresh)
+    const interval = setInterval(fetchCumulativeData, REFRESH_INTERVAL);
     return () => clearInterval(interval);
   }, [selectedLine, selectedDate]);
-
-  // 3. Floor එකේ සියලුම Line වල දෛනික output ගණන ලබා ගැනීම
-  useEffect(() => {
-    const machineIds = lines.map((l) => l.machineId).filter((id): id is string => Boolean(id));
-
-    let isMounted = true;
-
-    const fetchFloorTotal = async () => {
-      if (machineIds.length === 0) {
-        if (isMounted) setFloorTotalOutput(0);
-        return;
-      }
-      try {
-        const results = await Promise.all(
-          machineIds.map(async (machineId) => {
-            try {
-              const res = await api.get(`/api/esp32/hourly-production/${machineId}?date=${selectedDate}`);
-              return res.data?.success ? res.data.totalOutput || 0 : 0;
-            } catch {
-              return 0;
-            }
-          }),
-        );
-        if (isMounted) setFloorTotalOutput(results.reduce((sum, n) => sum + n, 0));
-      } catch (error) {
-        console.error("Error fetching floor total:", error);
-      }
-    };
-
-    fetchFloorTotal();
-    const interval = setInterval(fetchFloorTotal, 30000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [lines, selectedDate]);
 
   // Derived stats
   const totalLines = lines.length;
@@ -140,7 +137,6 @@ export default function AssemblyFloorPage() {
     { label: "Overall Progress", value: `${overallProgress}%`, icon: Gauge, accent: "bg-purple-50 text-purple-600" },
   ];
 
-  // ✅ FIX: Loader is now a full-page overlay, separate from main content tree
   if (loading) {
     return <Loader />;
   }
@@ -160,11 +156,16 @@ export default function AssemblyFloorPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 bg-white/95 p-2 px-4 rounded-lg shadow-sm">
+        <div className="flex items-center gap-3 bg-white/95 p-2 px-3 rounded-lg shadow-sm">
           <label htmlFor="date" className="text-sm font-semibold text-slate-600">
             Date:
           </label>
-          <input type="date" id="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="text-sm text-slate-800 outline-none cursor-pointer bg-transparent" />
+          <input type="date" id="date" value={inputDate} onChange={(e) => setInputDate(e.target.value)} className="text-sm text-slate-800 outline-none cursor-pointer bg-transparent" />
+          {/* Search Button එක */}
+          <button onClick={() => setSelectedDate(inputDate)} className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded-md transition-colors">
+            <Search className="h-3.5 w-3.5" />
+            Search
+          </button>
         </div>
       </div>
 
@@ -218,13 +219,13 @@ export default function AssemblyFloorPage() {
             <LineOverviewCard lineId={selectedLine.lineId} />
             <CumulativeChart machineId={selectedLine.machineId || ""} cumulativeData={cumulativeChartData} daily={selectedLine.dailyTarget || 0} />
             <ProductionGapChart lineId={selectedLine.lineId} date={selectedDate} />
-            <ProductionTable floor={FLOOR_NAME} lineId={selectedLine.lineId} date={selectedDate} />
+            <ProductionTable linesData={lines} floor={FLOOR_NAME} lineId={selectedLine.lineId} date={selectedDate} />
           </div>
         </div>
       ) : (
         <div>
           <h2 className="text-lg font-bold text-slate-700 mb-4">Overall Floor Production</h2>
-          <ProductionTable floor={FLOOR_NAME} date={selectedDate} />
+          <ProductionTable linesData={lines} floor={FLOOR_NAME} date={selectedDate} />
         </div>
       )}
     </div>

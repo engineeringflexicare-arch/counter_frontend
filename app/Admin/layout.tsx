@@ -130,7 +130,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Menu size={20} />
               </button>
 
-              <Image src="/logo.png" alt="Flexicare" width={40} height={40} style={{ width: 40, height: "auto" }} unoptimized />
+              <Image src="/logo.png" alt="Flexicare" width={40} height={40} unoptimized />
 
               <h1 className="font-bold text-xl text-slate-900">Admin Dashboard</h1>
             </div>

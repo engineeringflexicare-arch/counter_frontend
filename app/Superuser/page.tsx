@@ -18,7 +18,18 @@ interface Line {
   dailyTarget?: number;
   floor?: string;
   health?: MachineHealth;
+  shiftStartTime?: string; // e.g. "08:30"  — ADDED
+  shiftEndTime?: string; // e.g. "20:30"  — ADDED
 }
+
+// Helper: parse a bucket label like "08:00-09:00" into its start minute-of-day
+const parseBucketStartMinutes = (label: string): number | null => {
+  if (!label || !label.includes("-")) return null;
+  const [startStr] = label.split("-");
+  const [h, m] = startStr.split(":").map(Number);
+  if (Number.isNaN(h)) return null;
+  return h * 60 + (Number.isNaN(m) ? 0 : m);
+};
 
 export default function SuperuserDashboard() {
   const [lines, setLines] = useState<Line[]>([]);
@@ -76,21 +87,27 @@ export default function SuperuserDashboard() {
   }, [fetchAllLines]);
 
   // අද දිනයට සියලුම Line වල පැය අනුව output එකතු කර cumulative trend එක ගණනය කිරීම
+  // FIX: now sends each line's own shiftStartTime/shiftEndTime to the API,
+  // and merges multi-machine buckets by actual start-minute-of-day instead
+  // of raw label string, so lines on different shifts still align correctly.
   useEffect(() => {
-    const machineIds = lines.map((l) => l.machineId).filter((id): id is string => Boolean(id));
+    const eligibleLines = lines.filter((l) => Boolean(l.machineId));
 
     let isMounted = true;
     const fetchHourlyTrend = async () => {
-      if (machineIds.length === 0) {
+      if (eligibleLines.length === 0) {
         if (isMounted) setHourlyTrend([]);
         return;
       }
 
       try {
         const responses = await Promise.all(
-          machineIds.map(async (machineId) => {
+          eligibleLines.map(async (line) => {
             try {
-              const res = await api.get(`/api/esp32/hourly-production/${machineId}?date=${today}`);
+              const start = line.shiftStartTime || "08:30";
+              const end = line.shiftEndTime || "20:30";
+
+              const res = await api.get(`/api/esp32/hourly-production/${line.machineId}` + `?date=${today}&shiftStartTime=${encodeURIComponent(start)}&shiftEndTime=${encodeURIComponent(end)}`);
               return res.data?.success && Array.isArray(res.data.hourlyData) ? (res.data.hourlyData as { hour: string; output: number }[]) : [];
             } catch {
               return [];
@@ -99,17 +116,27 @@ export default function SuperuserDashboard() {
         );
 
         // පැය අනුව සියලුම machines වල output එකතු කිරීම
-        const byHour: Record<string, number> = {};
+        // (merged by actual start-minute-of-day, not the raw label string)
+        const byStartMin: Record<number, { label: string; output: number }> = {};
+
         responses.flat().forEach((item) => {
-          byHour[item.hour] = (byHour[item.hour] || 0) + (item.output || 0);
+          const startMin = parseBucketStartMinutes(item.hour);
+          if (startMin === null) return;
+
+          if (!byStartMin[startMin]) {
+            byStartMin[startMin] = { label: item.hour, output: 0 };
+          }
+          byStartMin[startMin].output += item.output || 0;
         });
 
         let cumulative = 0;
-        const trend = Object.keys(byHour)
-          .sort()
-          .map((hour) => {
-            cumulative += byHour[hour];
-            return { hour, output: byHour[hour], cumulative };
+        const trend = Object.keys(byStartMin)
+          .map(Number)
+          .sort((a, b) => a - b)
+          .map((startMin) => {
+            const bucket = byStartMin[startMin];
+            cumulative += bucket.output;
+            return { hour: bucket.label, output: bucket.output, cumulative };
           });
 
         if (isMounted) setHourlyTrend(trend);

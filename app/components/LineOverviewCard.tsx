@@ -6,6 +6,7 @@ import ArcProgress from "./ArcProgress";
 
 interface Props {
   lineId: string;
+  date?: string; // 👈 අලුතින් එකතු කළා
 }
 
 interface DashboardData {
@@ -14,19 +15,25 @@ interface DashboardData {
   productCode: string;
   machineId: string;
   startTime: string;
+  endTime: string;
 }
 
-export default function LineOverviewCard({ lineId }: Props) {
+export default function LineOverviewCard({ lineId, date }: Props) {
   const [data, setData] = useState<DashboardData>({
     current: 0,
     target: 0,
     productCode: "—",
     machineId: "—",
     startTime: "—",
+    endTime: "—",
   });
 
   useEffect(() => {
     let isMounted = true;
+    // FIX: declare interval up-front (not just inside the `if`) so the
+    // cleanup function always has a stable reference to clear, even if
+    // `isToday` is false and the interval is never created.
+    let interval: ReturnType<typeof setInterval> | undefined;
 
     const fetchData = async () => {
       if (!lineId) return;
@@ -40,6 +47,12 @@ export default function LineOverviewCard({ lineId }: Props) {
             productCode: res.data.productCode || "—",
             machineId: res.data.machineId || "—",
             startTime: res.data.startTime || "—",
+            // NOTE: this will keep showing "—" until the backend's
+            // getLiveDataByLineId actually returns an `endTime` field
+            // (it currently only returns `startTime`, not `endTime`).
+            // Once the backend sends `endTime: lineData.shiftEndTime`,
+            // this line needs no further changes.
+            endTime: res.data.endTime || "—",
           });
         }
       } catch (error) {
@@ -49,16 +62,20 @@ export default function LineOverviewCard({ lineId }: Props) {
 
     fetchData();
 
-    const interval = setInterval(fetchData, 3000);
+    // 💡 දත්ත පරණ දවසක එකක් නම්, auto-refresh අවශ්‍ය නැත.
+    // අද දවස නම් පමණක් refresh කරන්න.
+    const isToday = !date || date === new Date().toISOString().split("T")[0];
+    if (isToday) {
+      interval = setInterval(fetchData, 3000);
+    }
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
     };
-  }, [lineId]); // Dependency array එක දැන් නියත (constant) ප්‍රමාණයකින් යුක්තයි
+  }, [lineId, date]); // 👈 Dependency array එකට date එක එකතු කළා
 
   const percentage = data.target > 0 ? ((data.current / data.target) * 100).toFixed(1) : "0";
-  const remaining = Math.max(data.target - data.current, 0);
 
   return (
     <div className="bg-white rounded-lg border border-slate-200 shadow-sm px-4 py-3">
@@ -99,12 +116,12 @@ export default function LineOverviewCard({ lineId }: Props) {
         {/* Remaining + Start */}
         <div className="space-y-2">
           <div className="flex justify-between items-center">
-            <span className="text-xs text-slate-500">Remaining</span>
-            <span className="font-bold text-indigo-600">{remaining}</span>
+            <span className="text-xs text-slate-500">Shift Start Time</span>
+            <span className="font-bold text-rose-500">{data.startTime}</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-xs text-slate-500">Start</span>
-            <span className="font-bold text-rose-500">{data.startTime}</span>
+            <span className="text-xs text-slate-500">Shift End Time</span>
+            <span className="font-bold text-indigo-600">{data.endTime}</span>
           </div>
         </div>
       </div>

@@ -68,6 +68,7 @@ export default function GPAdvancedLoader() {
             width={72}
             height={72}
             className="object-contain"
+            style={{ width: "auto", height: "auto" }}
           />
         </div>
       </div>
