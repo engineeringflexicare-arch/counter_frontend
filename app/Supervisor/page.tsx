@@ -3,12 +3,13 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import api from "../../lib/api";
 import { useRouter } from "next/navigation";
-import { Activity, Cpu, Package, TrendingUp, RefreshCw, ChevronRight, AlertCircle } from "lucide-react";
+import { Activity, Cpu, Package, TrendingUp, RefreshCw, ChevronRight, AlertCircle, Clock, Target, Gauge } from "lucide-react";
 import MachineHealthBadge, { MachineHealth } from "../components/MachineHealthBadge";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface ApiLineData {
+  lineId?: string; // ADDED — present on every doc returned by GET /api/lines
   machineId?: string;
   productCode?: string;
   targetCount?: number;
@@ -48,17 +49,14 @@ function statusLabel(pct: number) {
 
 // ── Line Card ─────────────────────────────────────────────────────────────────
 
-function LineCard({ line, onClick }: { line: LineData; onClick: () => void }) {
+function LineCard({ line }: { line: LineData }) {
   const target = line.dailyTarget || line.targetCount || 0;
   const current = line.totalProductCount || 0;
   const pct = progressPct(current, target);
   const colors = statusColor(pct);
 
   return (
-    <button
-      onClick={onClick}
-      className="group w-full text-left rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-150 hover:border-teal-300 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
-    >
+    <div className="group w-full text-left rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-150 hover:border-teal-300 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400">
       {/* Top row */}
       <div className="flex items-start justify-between gap-2 mb-4">
         <div className="flex items-center gap-2.5">
@@ -113,7 +111,7 @@ function LineCard({ line, onClick }: { line: LineData; onClick: () => void }) {
           View details <ChevronRight className="h-3 w-3" />
         </span>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -134,19 +132,31 @@ function SummaryBar({ lines }: { lines: LineData[] }) {
     const t = l.dailyTarget || l.targetCount || 0;
     return progressPct(l.totalProductCount || 0, t) >= 90;
   }).length;
+  const behind = lines.filter((l) => {
+    const t = l.dailyTarget || l.targetCount || 0;
+    const pct = progressPct(l.totalProductCount || 0, t);
+    return pct >= 60 && pct < 90;
+  }).length;
   const atRisk = lines.filter((l) => {
     const t = l.dailyTarget || l.targetCount || 0;
     return progressPct(l.totalProductCount || 0, t) < 60;
   }).length;
   const totalOutput = lines.reduce((s, l) => s + (l.totalProductCount || 0), 0);
+  const totalTarget = lines.reduce((s, l) => s + (l.dailyTarget || l.targetCount || 0), 0);
+  const overallProgress = totalTarget > 0 ? ((totalOutput / totalTarget) * 100).toFixed(1) : "0.0";
+  const machinesAssigned = lines.filter((l) => Boolean(l.machineId)).length;
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 mb-6">
       {[
         { label: "Active Lines", value: total, icon: <Activity className="h-4 w-4 text-teal-600" />, bg: "bg-teal-50" },
+        { label: "Machines Assigned", value: machinesAssigned, icon: <Cpu className="h-4 w-4 text-sky-600" />, bg: "bg-sky-50" },
         { label: "On Track", value: onTrack, icon: <TrendingUp className="h-4 w-4 text-emerald-600" />, bg: "bg-emerald-50" },
+        { label: "Behind", value: behind, icon: <Clock className="h-4 w-4 text-amber-500" />, bg: "bg-amber-50" },
         { label: "At Risk", value: atRisk, icon: <AlertCircle className="h-4 w-4 text-red-500" />, bg: "bg-red-50" },
         { label: "Total Output", value: totalOutput.toLocaleString(), icon: <Package className="h-4 w-4 text-indigo-600" />, bg: "bg-indigo-50" },
+        { label: "Total Target", value: totalTarget.toLocaleString(), icon: <Target className="h-4 w-4 text-violet-600" />, bg: "bg-violet-50" },
+        { label: "Overall Progress", value: `${overallProgress}%`, icon: <Gauge className="h-4 w-4 text-fuchsia-600" />, bg: "bg-fuchsia-50" },
       ].map((s) => (
         <div key={s.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
@@ -179,20 +189,39 @@ export default function SupervisorDashboard() {
       // Use /api/esp32/status instead of /api/esp32/machine-status
       const healthRes = await api.get(`/api/esp32/status`);
 
-      const data = linesRes.data?.data as Record<string, ApiLineData>;
+      // FIX: GET /api/lines returns an ARRAY of line documents
+      // (see getAllLines: `Line.find().sort(...)`), not a dictionary
+      // keyed by lineId. The previous code did
+      // `Object.entries(data).map(([key, val]) => ({ ...val, id: key }))`
+      // assuming `data` was a dictionary — but on an array, Object.entries
+      // returns index/value pairs ("0", "1", ...), so every card's `id`
+      // ended up being its array position instead of its real lineId
+      // ("Line_06").
+      //
+      // Read lineId directly off each document instead of relying on
+      // object keys, regardless of whether the array or dictionary shape
+      // is ever returned.
+      const rawData = linesRes.data?.data;
+      const linesArray: ApiLineData[] = Array.isArray(rawData) ? rawData : rawData ? Object.values(rawData) : [];
+
       const healthData = healthRes.data?.data || [];
 
-      if (data) {
-        const arr: LineData[] = Object.entries(data).map(([key, val]) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const mHealth = healthData.find((h: any) => h.machineId === val.machineId);
-          return {
-            ...val,
-            id: key,
-            health: mHealth,
-          };
-        });
+      if (linesArray.length > 0) {
+        const arr: LineData[] = linesArray
+          .filter((val) => Boolean(val.lineId))
+          .map((val) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const mHealth = healthData.find((h: any) => h.machineId === val.machineId);
+            return {
+              ...val,
+              id: val.lineId as string,
+              health: mHealth,
+            };
+          });
         setLines(arr.sort((a, b) => a.id.localeCompare(b.id)));
+        setLastUpdated(new Date());
+      } else {
+        setLines([]);
         setLastUpdated(new Date());
       }
     } catch (err) {
@@ -231,8 +260,8 @@ export default function SupervisorDashboard() {
       <div className="min-h-screen bg-slate-50 p-6">
         <div className="mx-auto max-w-7xl">
           <div className="mb-6 h-8 w-56 animate-pulse rounded-lg bg-slate-200" />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6">
-            {[...Array(4)].map((_, i) => (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 mb-6">
+            {[...Array(8)].map((_, i) => (
               <div key={i} className="h-24 animate-pulse rounded-xl bg-slate-200" />
             ))}
           </div>
@@ -304,7 +333,9 @@ export default function SupervisorDashboard() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredLines.map((line) => (
-              <LineCard key={line.id} line={line} onClick={() => router.push(`/Supervisor/line/${line.id}`)} />
+              <button key={line.id} onClick={() => router.push(`/Supervisor/${line.id}`)} className="text-left cursor-pointer transition-transform hover:scale-105 focus:outline-none">
+                <LineCard line={line} />
+              </button>
             ))}
           </div>
         )}

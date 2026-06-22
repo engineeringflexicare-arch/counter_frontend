@@ -100,7 +100,7 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
         {/* Logo */}
         <div className="p-3 border-b  border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Logo" width={100} height={40} style={{ width: "auto", height: "auto" }} className="rounded-full  border-slate-50 p-1 border-2 " />
+            <Image src="/logo.png" alt="Logo" width={60} height={60} className="rounded-full  border-slate-50 p-1 border-2 " />
 
             {!collapsed && (
               <div>

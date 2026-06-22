@@ -7,6 +7,7 @@ import Loader from "@/app/components/Loader";
 
 // 1. අලුත් Interface එක
 interface LineData {
+  lineId?: string;
   machineId?: string;
   productCode?: string;
   dailyTarget?: number;
@@ -51,7 +52,7 @@ export default function SupervisorLineUpdatePanel() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [message, setMessage] = useState("");
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+  // const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
   useEffect(() => {
     const fetchData = async () => {
@@ -59,15 +60,35 @@ export default function SupervisorLineUpdatePanel() {
         setInitialLoading(true);
         const token = localStorage.getItem("token");
 
-        const linesRes = await api.get(`${API_BASE_URL}/api/lines`, {
+        const linesRes = await api.get(`/api/lines`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
         if (linesRes.data.success && linesRes.data.data) {
-          setLines(linesRes.data.data);
+          // FIX: GET /api/lines returns an ARRAY of line documents
+          // (see getAllLines: `Line.find().sort(...)`), not a dictionary
+          // keyed by lineId. Assigning the array straight into a
+          // Record<string, LineData> state silently keyed it by array
+          // INDEX ("0", "1", ...) instead of by lineId ("Line_06", ...),
+          // which is why the dropdown rendered the option label "0"
+          // instead of "Line 06".
+          //
+          // Convert the array into a dictionary keyed by lineId here,
+          // once, so every other part of this component (which already
+          // assumes Record<string, LineData>) keeps working unchanged.
+          const linesArray: LineData[] = Array.isArray(linesRes.data.data) ? linesRes.data.data : Object.values(linesRes.data.data);
+
+          const linesDict: Record<string, LineData> = {};
+          linesArray.forEach((line) => {
+            if (line.lineId) {
+              linesDict[line.lineId] = line;
+            }
+          });
+
+          setLines(linesDict);
         }
 
-        const machinesRes = await api.get(`${API_BASE_URL}/api/esp32/free-counters`, {
+        const machinesRes = await api.get(`/api/esp32/free-counters`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -82,7 +103,7 @@ export default function SupervisorLineUpdatePanel() {
     };
 
     fetchData();
-  }, [API_BASE_URL]);
+  }, []);
 
   // 2. අලුත් handleUpdate Function එක
   const handleUpdate = async () => {
@@ -119,7 +140,11 @@ export default function SupervisorLineUpdatePanel() {
         totalProductCount: Number(dailyProduction) || 0,
       };
 
-      const response = await api.put(`${API_BASE_URL}/api/lines/update-line`, payload, {
+      // FIX: the real route (see LineRouter.js) is PUT /api/lines/update,
+      // not /api/lines/update-line. The old path 404'd silently, which
+      // meant shift-time edits made in this panel were never actually
+      // saved to the database.
+      const response = await api.put(`/api/lines/update`, payload, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
