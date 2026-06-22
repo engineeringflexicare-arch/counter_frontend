@@ -417,7 +417,7 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
               <tfoot>
                 <tr className="bg-slate-100 font-bold text-slate-800">
                   <td colSpan={2} className="border border-slate-700 px-4 py-3 text-right">
-                    Floor Total
+                    Total
                   </td>
                   <td className="border border-slate-700 px-3 py-3 text-blue-700 text-base">{grandTotal.toLocaleString()}</td>
                   <td colSpan={3} className="border border-slate-700 px-3 py-3"></td>
