@@ -62,7 +62,7 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
     },
     {
       name: "Manufacturing Floor",
-      href: "/Superuser/Manufacturingfloor",
+      href: "/Superuser/ManufacturingFloor",
       icon: Factory,
     },
     {
