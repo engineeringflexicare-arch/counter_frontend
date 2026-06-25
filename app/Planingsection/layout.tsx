@@ -8,24 +8,27 @@ import { LayoutDashboard, Factory, LogOut, Menu, X, ClipboardList, Settings } fr
 import NotificationDropdown from "../components/NotificationDropdown";
 import { RiMenuFold2Line } from "react-icons/ri";
 
-export default function SupervisorLayout({ children }: { children: React.ReactNode }) {
+export default function PlaningSectionLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  // State Management
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [currentTime, setCurrentTime] = useState("");
 
-  // Safe Client-Side State Initialization (Fixes ESLint error)
-  const [userName] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("userName") || "User";
-    }
-    return "User";
-  });
+  // User States
+  const [userName, setUserName] = useState("User");
+  const [userDepartment, setUserDepartment] = useState("Planning");
 
-  // Real-Time Clock Lifecycle
   useEffect(() => {
+    // LocalStorage එකෙන් දත්ත ගැනීම
+    const storedUser = localStorage.getItem("userName");
+    const storedDept = localStorage.getItem("userDepartment");
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (storedUser) setUserName(storedUser);
+
+    if (storedDept) setUserDepartment(storedDept);
+
     const updateTime = () => {
       const now = new Date();
       const formatted = now.toLocaleString("en-GB", {
@@ -49,22 +52,22 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
   const menuItems = [
     {
       name: "Dashboard",
-      href: "/Supervisor",
+      href: "/Planingsection",
       icon: LayoutDashboard,
     },
     {
-      name: "Line Assignment",
-      href: "/Supervisor/line-assignment",
+      name: "Orders",
+      href: "/Planingsection/orders",
       icon: Factory,
     },
     {
-      name: "Lines Update",
-      href: "/Supervisor/line_update",
+      name: "Machine Planning",
+      href: "/Planingsection/MachinePlaning",
       icon: ClipboardList,
     },
     {
-      name: "ManageLinesPanel",
-      href: "/Supervisor/ManageLinesPage",
+      name: "Inventory",
+      href: "/Planingsection/Inventory",
       icon: Settings,
     },
   ];
@@ -72,6 +75,7 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("userName");
+    localStorage.removeItem("userDepartment");
     window.location.href = "/";
   };
 
@@ -86,7 +90,7 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
           fixed lg:sticky top-0 left-0 z-50
           h-screen
           ${collapsed ? "w-20" : "w-72"}
-          bg-linear-to-b
+          bg-linear-to-b 
           from-slate-950
           via-slate-900
           to-slate-950
@@ -96,7 +100,7 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         `}
       >
-        {/* Logo Header */}
+        {/* Logo */}
         <div className="p-3 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Image src="/logo.png" alt="Logo" width={60} height={60} className="rounded-full border-slate-50 p-1 border-2" />
@@ -122,7 +126,7 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
           </div>
         </div>
 
-        {/* Navigation Section */}
+        {/* Navigation */}
         <nav className="flex-1 p-3 space-y-2">
           {menuItems.map((item) => {
             const Icon = item.icon;
@@ -148,7 +152,7 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
           })}
         </nav>
 
-        {/* Footer Actions */}
+        {/* Footer */}
         <div className="p-4 border-t border-slate-800">
           {!collapsed && (
             <div className="bg-slate-800 rounded-xl p-4 mb-3">
@@ -177,46 +181,42 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
         </div>
       </aside>
 
-      {/* Main Panel Shell */}
+      {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Navbar */}
+        {/* Header */}
         <header className="h-16 bg-white border-b border-slate-200 shadow-sm flex items-center justify-between px-6 sticky top-0 z-30">
           <div className="flex items-center gap-3">
-            {/* Mobile Menu Button */}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="lg:hidden flex items-center justify-center p-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-blue-100 hover:text-blue-600 transition-all duration-300 ease-in-out"
-              aria-label="Toggle Sidebar"
             >
-              {sidebarOpen ? <X size={22} className="animate-in fade-in zoom-in duration-200" /> : <RiMenuFold2Line size={22} className="animate-in fade-in zoom-in duration-200" />}
+              {sidebarOpen ? <X size={22} /> : <RiMenuFold2Line size={22} />}
             </button>
 
-            <h1 className="text-sm md:text-xl font-bold text-slate-800">flexicare Production Monitoring System</h1>
+            <h1 className="text-sm md:text-xl font-bold text-slate-800">Flexicare Production System</h1>
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Conditional Render Live Clock (Avoids Server-Side Hydration Lag) */}
-            {currentTime && (
-              <div className="hidden lg:flex flex-col items-center bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
-                <span className="text-sm font-bold text-slate-800">{currentTime}</span>
-              </div>
-            )}
-
-            {/* Notification Center */}
-            <NotificationDropdown />
-
-            {/* User Meta Data */}
-            <div className="hidden md:block text-right">
-              <p className="text-sm font-semibold text-slate-700">{userName}</p>
-              <p className="text-xs text-slate-500">Production Department</p>
+            {/* Date & Time */}
+            <div className="hidden lg:flex flex-col items-center bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
+              <span className="text-sm font-bold text-slate-800">{currentTime}</span>
             </div>
 
-            {/* Dynamic Avatar Initials */}
+            {/* Notification */}
+            <NotificationDropdown />
+
+            {/* User Info */}
+            <div className="hidden md:block text-right">
+              <p className="text-sm font-semibold text-slate-700">{userName}</p>
+              <p className="text-xs text-slate-500">{userDepartment}</p>
+            </div>
+
+            {/* Avatar */}
             <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">{userName.charAt(0).toUpperCase()}</div>
           </div>
         </header>
 
-        {/* Screen Slot Component */}
+        {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-5">{children}</main>
       </div>
     </div>

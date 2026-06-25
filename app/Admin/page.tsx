@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import axios from "axios";
+
 import { Factory, Users, Activity, Cpu, TrendingUp, AlertTriangle, LayoutDashboard, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import api from "@/lib/api";
 
 // ==========================================
 // Types
@@ -106,8 +107,6 @@ export default function AdminPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [secondsAgo, setSecondsAgo] = useState<number | null>(null);
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
-
   const getToken = useCallback(() => {
     if (typeof window === "undefined") return "";
     return localStorage.getItem("token") ?? "";
@@ -119,7 +118,7 @@ export default function AdminPage() {
       const token = getToken();
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-      const res = await axios.get(`${API_BASE_URL}/api/admin/dashboard-stats`, { headers });
+      const res = await api.get(`/api/admin/dashboard-stats`, { headers });
 
       if (res.data?.success) {
         setData(res.data.data);
@@ -133,7 +132,7 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [API_BASE_URL, getToken]);
+  }, [getToken]);
 
   const hasInitialized = useRef(false);
 

@@ -70,6 +70,9 @@ export default function LoginPage() {
           case "Supervisor":
             router.push("/Supervisor");
             break;
+          case "Planner":
+            router.push("/Planingsection");
+            break;
           default:
             router.push("/dashboard");
         }

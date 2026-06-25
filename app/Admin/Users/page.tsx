@@ -1,9 +1,23 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import axios from "axios";
-import { UserPlus, Edit, Trash2, X, Shield, Search, User, ShieldAlert, ShieldCheck, ShieldQuestion, UserCheck, Clock, Check } from "lucide-react";
-import toast, { Toaster, Toast } from "react-hot-toast";
+import api from "@/lib/api";
+import {
+  UserPlus,
+  Edit,
+  Trash2,
+  X,
+  Shield,
+  Search,
+  User,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldQuestion,
+  UserCheck,
+  Clock,
+  Check,
+} from "lucide-react";
+import toast, { Toaster } from "react-hot-toast";
 import Loader from "@/app/components/Loader";
 
 interface UserData {
@@ -27,7 +41,23 @@ interface PendingRequestData {
   reason?: string;
 }
 
-const ROLE_STYLES: Record<string, { dot: string; badge: string; stripe: string; icon: React.ElementType }> = {
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+}
+
+const ROLE_STYLES: Record<
+  string,
+  {
+    dot: string;
+    badge: string;
+    stripe: string;
+    icon: React.ElementType;
+  }
+> = {
   Admin: {
     dot: "bg-violet-400",
     badge: "bg-violet-500/10 text-violet-300 ring-violet-500/30",
@@ -63,10 +93,25 @@ const DEFAULT_STYLE = {
 
 const getRoleStyle = (role: string) => ROLE_STYLES[role] || DEFAULT_STYLE;
 
+// Helper function to extract error message from API response
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    const apiError = error as unknown as ApiError;
+    return (
+      apiError?.response?.data?.message ||
+      error.message ||
+      "An unexpected error occurred."
+    );
+  }
+  return "An unexpected error occurred.";
+};
+
 export default function UserManagement() {
   const [activeTab, setActiveTab] = useState<"users" | "pending">("users");
   const [users, setUsers] = useState<UserData[]>([]);
-  const [pendingRequests, setPendingRequests] = useState<PendingRequestData[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequestData[]>(
+    []
+  );
   const [loading, setLoading] = useState(true);
   const [pendingLoading, setPendingLoading] = useState(false);
 
@@ -85,24 +130,29 @@ export default function UserManagement() {
     role: "Operator",
   });
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
   const getToken = () => localStorage.getItem("token");
 
   // Fetch Active Users
   const fetchUsers = useCallback(async () => {
     const token = getToken();
-    if (!token) return;
+    if (!token) {
+      toast.error("Authentication token not found. Please login again.");
+      return;
+    }
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/users`, {
+      const res = await api.get("/api/users", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.data.success) setUsers(res.data.data);
-    } catch {
+      if (res.data?.success) {
+        setUsers(res.data.data || []);
+      }
+    } catch (error) {
       toast.error("Failed to load users.");
+      console.error("Fetch users error:", error);
     } finally {
       setLoading(false);
     }
-  }, [API_BASE_URL]);
+  }, []);
 
   // Fetch Pending Requests
   const fetchPendingRequests = useCallback(async () => {
@@ -110,16 +160,19 @@ export default function UserManagement() {
     if (!token) return;
     setPendingLoading(true);
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/users/registrations`, {
+      const res = await api.get("/api/admin/registrations/pending", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.data.success) setPendingRequests(res.data.data);
-    } catch {
+      if (res.data?.success) {
+        setPendingRequests(res.data.data || []);
+      }
+    } catch (error) {
       toast.error("Failed to load pending registrations.");
+      console.error("Fetch pending requests error:", error);
     } finally {
       setPendingLoading(false);
     }
-  }, [API_BASE_URL]);
+  }, []);
 
   // Safe data-fetching initializer
   useEffect(() => {
@@ -164,16 +217,22 @@ export default function UserManagement() {
   };
 
   // API Functions
-  const executeApproveRequest = async (requestId: string, role: string, requestData?: PendingRequestData) => {
+  const executeApproveRequest = async (
+    requestId: string,
+    role: string,
+    requestData?: PendingRequestData
+  ) => {
     const toastId = toast.loading("Approving request and processing...");
     try {
       // Check if user with same email already exists
-      const existingUser = users.find((u) => u.email.toLowerCase() === requestData?.email.toLowerCase());
+      const existingUser = users.find(
+        (u) => u.email.toLowerCase() === requestData?.email.toLowerCase()
+      );
 
       if (existingUser) {
         // User exists - just update their role
-        const updateRes = await axios.put(
-          `${API_BASE_URL}/api/users/${existingUser._id}`,
+        const updateRes = await api.put(
+          `/api/users/${existingUser._id}`,
           {
             FirstName: existingUser.FirstName,
             LastName: existingUser.LastName,
@@ -181,121 +240,169 @@ export default function UserManagement() {
             email: existingUser.email,
             role: role,
           },
-          { headers: { Authorization: `Bearer ${getToken()}` } },
+          { headers: { Authorization: `Bearer ${getToken()}` } }
         );
 
-        if (updateRes.data.success) {
+        if (updateRes.data?.success) {
           // Now reject the pending request
-          await axios.post(`${API_BASE_URL}/api/users/registrations/${requestId}/reject`, {}, { headers: { Authorization: `Bearer ${getToken()}` } });
+          await api.delete(`/api/admin/registrations/reject/${requestId}`, {
+            headers: { Authorization: `Bearer ${getToken()}` },
+          });
 
-          toast.success(`Role '${role}' assigned to existing user ${existingUser.FirstName} ${existingUser.LastName}!`, { id: toastId });
+          toast.success(
+            `Role '${role}' assigned to existing user ${existingUser.FirstName} ${existingUser.LastName}!`,
+            { id: toastId }
+          );
           fetchPendingRequests();
           fetchUsers();
         }
       } else {
         // User doesn't exist - create new user and approve
-        const res = await axios.post(`${API_BASE_URL}/api/users/registrations/${requestId}/approve`, { role }, { headers: { Authorization: `Bearer ${getToken()}` } });
-        if (res.data.success) {
-          toast.success("New user created and approved! Credentials emailed successfully.", { id: toastId });
+        const res = await api.post(
+          `/api/admin/registrations/approve/${requestId}`,
+          { role },
+          { headers: { Authorization: `Bearer ${getToken()}` } }
+        );
+        if (res.data?.success) {
+          toast.success(
+            "New user created and approved! Credentials emailed successfully.",
+            { id: toastId }
+          );
           fetchPendingRequests();
           fetchUsers();
         }
       }
     } catch (error: unknown) {
-      if (axios.isAxiosError(error)) {
-        toast.error(error.response?.data?.message || "Approval failed.", {
-          id: toastId,
-        });
-      } else {
-        toast.error("An unexpected error occurred.", { id: toastId });
-      }
+      const errorMessage = getErrorMessage(error);
+      toast.error(errorMessage, {
+        id: toastId,
+      });
     }
   };
 
   const executeRejectRequest = async (requestId: string) => {
     const toastId = toast.loading("Rejecting request...");
     try {
-      const res = await axios.post(`${API_BASE_URL}/api/users/registrations/${requestId}/reject`, {}, { headers: { Authorization: `Bearer ${getToken()}` } });
-      if (res.data.success) {
-        toast.success("Registration request rejected and removed.", { id: toastId });
+      const res = await api.delete(
+        `/api/admin/registrations/reject/${requestId}`,
+        {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        }
+      );
+      if (res.data?.success) {
+        toast.success("Registration request rejected and removed.", {
+          id: toastId,
+        });
         fetchPendingRequests();
       }
     } catch (error: unknown) {
-      if (axios.isAxiosError(error)) {
-        toast.error(error.response?.data?.message || "Rejection failed.", {
-          id: toastId,
-        });
-      } else {
-        toast.error("An unexpected error occurred.", { id: toastId });
-      }
+      const errorMessage = getErrorMessage(error);
+      toast.error(errorMessage, {
+        id: toastId,
+      });
     }
   };
 
   const executeToggleBlock = async (userId: string, endpoint: string) => {
-    const toastId = toast.loading(`${endpoint === "block" ? "Blocking" : "Unblocking"} user...`);
+    const toastId = toast.loading(
+      `${endpoint === "block" ? "Blocking" : "Unblocking"} user...`
+    );
     try {
-      await axios.patch(`${API_BASE_URL}/api/users/${endpoint}/${userId}`, {}, { headers: { Authorization: `Bearer ${getToken()}` } });
+      await api.patch(
+        `/api/users/${endpoint}/${userId}`,
+        {},
+        { headers: { Authorization: `Bearer ${getToken()}` } }
+      );
       toast.success(`User ${endpoint}ed successfully!`, { id: toastId });
       fetchUsers();
     } catch (error: unknown) {
-      if (axios.isAxiosError(error)) {
-        toast.error(error.response?.data?.message || "Action failed.", {
-          id: toastId,
-        });
-      } else {
-        toast.error("An unexpected error occurred.", { id: toastId });
-      }
+      const errorMessage = getErrorMessage(error);
+      toast.error(errorMessage, {
+        id: toastId,
+      });
     }
   };
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validation
+    if (!formData.FirstName.trim()) {
+      toast.error("First name is required.");
+      return;
+    }
+    if (!formData.LastName.trim()) {
+      toast.error("Last name is required.");
+      return;
+    }
+    if (!formData.email.trim()) {
+      toast.error("Email is required.");
+      return;
+    }
+    if (!formData.password.trim()) {
+      toast.error("Password is required.");
+      return;
+    }
+
     const toastId = toast.loading("Adding user...");
     try {
-      await axios.post(`${API_BASE_URL}/api/users/add`, formData, {
+      const res = await api.post("/api/users/add", formData, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
-      toast.success("User added successfully!", { id: toastId });
-      setIsAddOpen(false);
-      setFormData({
-        FirstName: "",
-        LastName: "",
-        EmployeeId: "",
-        email: "",
-        password: "",
-        role: "Operator",
-      });
-      fetchUsers();
-    } catch (error: unknown) {
-      if (axios.isAxiosError(error)) {
-        toast.error(error.response?.data?.message || "Failed to add user.", {
-          id: toastId,
+      if (res.data?.success) {
+        toast.success("User added successfully!", { id: toastId });
+        setIsAddOpen(false);
+        setFormData({
+          FirstName: "",
+          LastName: "",
+          EmployeeId: "",
+          email: "",
+          password: "",
+          role: "Operator",
         });
-      } else {
-        toast.error("An unexpected error occurred.", { id: toastId });
+        fetchUsers();
       }
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      toast.error(errorMessage, {
+        id: toastId,
+      });
     }
   };
 
   const handleEditUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) return;
+
+    // Validation
+    if (!formData.FirstName.trim()) {
+      toast.error("First name is required.");
+      return;
+    }
+    if (!formData.LastName.trim()) {
+      toast.error("Last name is required.");
+      return;
+    }
+    if (!formData.email.trim()) {
+      toast.error("Email is required.");
+      return;
+    }
+
     const toastId = toast.loading("Updating user...");
     try {
-      await axios.put(`${API_BASE_URL}/api/users/${selectedUser._id}`, formData, {
+      const res = await api.put(`/api/users/${selectedUser._id}`, formData, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
-      toast.success("User updated successfully!", { id: toastId });
-      setIsEditOpen(false);
-      fetchUsers();
-    } catch (error: unknown) {
-      if (axios.isAxiosError(error)) {
-        toast.error(error.response?.data?.message || "Failed to update user.", {
-          id: toastId,
-        });
-      } else {
-        toast.error("An unexpected error occurred.", { id: toastId });
+      if (res.data?.success) {
+        toast.success("User updated successfully!", { id: toastId });
+        setIsEditOpen(false);
+        fetchUsers();
       }
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      toast.error(errorMessage, {
+        id: toastId,
+      });
     }
   };
 
@@ -303,26 +410,34 @@ export default function UserManagement() {
     if (!selectedUser) return;
     const toastId = toast.loading("Deleting user...");
     try {
-      await axios.delete(`${API_BASE_URL}/api/users/${selectedUser._id}`, {
+      const res = await api.delete(`/api/users/${selectedUser._id}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
-      toast.success("User deleted successfully!", { id: toastId });
-      setIsDeleteOpen(false);
-      fetchUsers();
-    } catch (error: unknown) {
-      if (axios.isAxiosError(error)) {
-        toast.error(error.response?.data?.message || "Failed to delete user.", {
-          id: toastId,
-        });
-      } else {
-        toast.error("An unexpected error occurred.", { id: toastId });
+      if (res.data?.success) {
+        toast.success("User deleted successfully!", { id: toastId });
+        setIsDeleteOpen(false);
+        fetchUsers();
       }
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      toast.error(errorMessage, {
+        id: toastId,
+      });
     }
   };
 
   // Notification Toasts
   const handleApproveConfirm = (request: PendingRequestData) => {
-    toast((t) => <ApproveToastContent t={t} request={request} onConfirm={(id, role) => executeApproveRequest(id, role, request)} />, { duration: Infinity, position: "top-center" });
+    toast(
+      (t) => (
+        <ApproveToastContent
+          t={t}
+          request={request}
+          onConfirm={(id, role) => executeApproveRequest(id, role, request)}
+        />
+      ),
+      { duration: Infinity, position: "top-center" }
+    );
   };
 
   const handleRejectConfirm = (request: PendingRequestData) => {
@@ -330,10 +445,14 @@ export default function UserManagement() {
       (t) => (
         <div className="flex flex-col gap-3 p-1">
           <p className="text-sm font-medium text-slate-200">
-            Reject registration request from <span className="font-bold text-rose-400">{request.firstName}</span>?
+            Reject registration request from{" "}
+            <span className="font-bold text-rose-400">{request.firstName}</span>?
           </p>
           <div className="flex justify-end gap-2">
-            <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1.5 text-xs bg-slate-700 text-white rounded-lg font-semibold">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-3 py-1.5 text-xs bg-slate-700 text-white rounded-lg font-semibold"
+            >
               Cancel
             </button>
             <button
@@ -348,7 +467,7 @@ export default function UserManagement() {
           </div>
         </div>
       ),
-      { duration: Infinity, position: "top-center" },
+      { duration: Infinity, position: "top-center" }
     );
   };
 
@@ -362,10 +481,15 @@ export default function UserManagement() {
       (t) => (
         <div className="flex flex-col gap-3 p-1">
           <p className="text-sm font-medium text-slate-200">
-            Are you sure you want to <span className="font-bold text-cyan-400 underline">{endpoint}</span> this user?
+            Are you sure you want to{" "}
+            <span className="font-bold text-cyan-400 underline">{endpoint}</span>{" "}
+            this user?
           </p>
           <div className="flex justify-end gap-2">
-            <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1.5 text-xs bg-slate-700 text-white rounded-lg font-semibold">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-3 py-1.5 text-xs bg-slate-700 text-white rounded-lg font-semibold"
+            >
               Cancel
             </button>
             <button
@@ -373,35 +497,49 @@ export default function UserManagement() {
                 toast.dismiss(t.id);
                 executeToggleBlock(user._id, endpoint);
               }}
-              className={`px-3 py-1.5 text-xs text-white rounded-lg font-semibold ${endpoint === "block" ? "bg-red-600" : "bg-green-600"}`}
+              className={`px-3 py-1.5 text-xs text-white rounded-lg font-semibold ${
+                endpoint === "block" ? "bg-red-600" : "bg-green-600"
+              }`}
             >
               Yes, Sure
             </button>
           </div>
         </div>
       ),
-      { duration: Infinity, position: "top-center" },
+      { duration: Infinity, position: "top-center" }
     );
   };
 
   // Filtering & Calculations
   const roleCounts = useMemo(() => {
-    return users.reduce((acc: Record<string, number>, user) => {
-      acc[user.role] = (acc[user.role] || 0) + 1;
-      return acc;
-    }, {});
+    return users.reduce(
+      (acc: Record<string, number>, user) => {
+        acc[user.role] = (acc[user.role] || 0) + 1;
+        return acc;
+      },
+      {}
+    );
   }, [users]);
 
   const filteredUsers = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return users;
-    return users.filter((u) => `${u.FirstName} ${u.LastName}`.toLowerCase().includes(q) || String(u.EmployeeId).toLowerCase().includes(q) || u.email?.toLowerCase().includes(q));
+    return users.filter(
+      (u) =>
+        `${u.FirstName} ${u.LastName}`.toLowerCase().includes(q) ||
+        String(u.EmployeeId).toLowerCase().includes(q) ||
+        u.email?.toLowerCase().includes(q)
+    );
   }, [users, searchQuery]);
 
   const filteredRequests = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return pendingRequests;
-    return pendingRequests.filter((r) => `${r.firstName} ${r.lastName}`.toLowerCase().includes(q) || r.email?.toLowerCase().includes(q));
+    return pendingRequests.filter(
+      (r) =>
+        `${r.firstName} ${r.lastName}`.toLowerCase().includes(q) ||
+        r.email?.toLowerCase().includes(q)
+    );
   }, [pendingRequests, searchQuery]);
 
   if (loading) {
@@ -430,16 +568,25 @@ export default function UserManagement() {
               <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono uppercase tracking-[0.2em] mb-2">
                 <Shield size={14} /> Access Control
               </div>
-              <h1 className="text-3xl font-bold text-white tracking-tight">User Management</h1>
-              <p className="text-slate-500 mt-1 text-sm">Manage active directory accounts and incoming corporate registration tiers.</p>
+              <h1 className="text-3xl font-bold text-white tracking-tight">
+                User Management
+              </h1>
+              <p className="text-slate-500 mt-1 text-sm">
+                Manage active directory accounts and incoming corporate
+                registration tiers.
+              </p>
             </div>
             <div className="flex items-center gap-6">
               <div className="hidden md:flex items-center gap-4 font-mono text-xs">
                 {Object.entries(ROLE_STYLES).map(([role, style]) => (
                   <div key={role} className="flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full ${style.dot}`} />
-                    <span className="text-slate-400 uppercase tracking-wider">{role}</span>
-                    <span className="text-slate-200 font-semibold">{roleCounts[role] || 0}</span>
+                    <span className="text-slate-400 uppercase tracking-wider">
+                      {role}
+                    </span>
+                    <span className="text-slate-200 font-semibold">
+                      {roleCounts[role] || 0}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -467,7 +614,9 @@ export default function UserManagement() {
             <button
               onClick={() => setActiveTab("users")}
               className={`px-4 py-2.5 font-medium text-sm transition-all border-b-2 flex items-center gap-2 ${
-                activeTab === "users" ? "border-cyan-400 text-cyan-400" : "border-transparent text-slate-400 hover:text-slate-200"
+                activeTab === "users"
+                  ? "border-cyan-400 text-cyan-400"
+                  : "border-transparent text-slate-400 hover:text-slate-200"
               }`}
             >
               <UserCheck size={16} /> Active Users
@@ -475,17 +624,26 @@ export default function UserManagement() {
             <button
               onClick={() => setActiveTab("pending")}
               className={`px-4 py-2.5 font-medium text-sm transition-all border-b-2 flex items-center gap-2 ${
-                activeTab === "pending" ? "border-cyan-400 text-cyan-400" : "border-transparent text-slate-400 hover:text-slate-200"
+                activeTab === "pending"
+                  ? "border-cyan-400 text-cyan-400"
+                  : "border-transparent text-slate-400 hover:text-slate-200"
               }`}
             >
               <Clock size={16} /> Pending Requests
-              {pendingRequests.length > 0 && <span className="bg-cyan-500 text-slate-950 text-xs font-bold px-1.5 py-0.5 rounded-full">{pendingRequests.length}</span>}
+              {pendingRequests.length > 0 && (
+                <span className="bg-cyan-500 text-slate-950 text-xs font-bold px-1.5 py-0.5 rounded-full">
+                  {pendingRequests.length}
+                </span>
+              )}
             </button>
           </div>
 
           {/* Search Bar */}
           <div className="relative mb-6">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
+              size={18}
+            />
             <input
               type="text"
               placeholder="Search by name, email, or employee ID..."
@@ -506,15 +664,24 @@ export default function UserManagement() {
                         <th className="px-6 py-4 font-medium">Employee</th>
                         <th className="px-6 py-4 font-medium">Role</th>
                         <th className="px-6 py-4 font-medium">Status</th>
-                        <th className="px-6 py-4 font-medium text-right">Actions</th>
+                        <th className="px-6 py-4 font-medium text-right">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800">
                       {filteredUsers.map((user) => {
-                        const { badge, dot, stripe } = getRoleStyle(user.role);
+                        const { badge, dot, stripe } = getRoleStyle(
+                          user.role
+                        );
                         return (
-                          <tr key={user._id} className="hover:bg-slate-800/20 transition-colors">
-                            <td className={`px-6 py-4 border-l-2 ${stripe}`}>
+                          <tr
+                            key={user._id}
+                            className="hover:bg-slate-800/20 transition-colors"
+                          >
+                            <td
+                              className={`px-6 py-4 border-l-2 ${stripe}`}
+                            >
                               <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-bold uppercase">
                                   {user.FirstName.charAt(0)}
@@ -531,31 +698,59 @@ export default function UserManagement() {
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ring-1 ring-inset ${badge}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ring-1 ring-inset ${badge}`}
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${dot}`}
+                                />
                                 {user.role}
                               </span>
                             </td>
                             <td className="px-6 py-4">
                               {user.isBlocked ? (
-                                <span className="text-rose-400 text-xs font-semibold bg-rose-500/10 px-2.5 py-1 rounded-md ring-1 ring-rose-500/30">Blocked</span>
+                                <span className="text-rose-400 text-xs font-semibold bg-rose-500/10 px-2.5 py-1 rounded-md ring-1 ring-rose-500/30">
+                                  Blocked
+                                </span>
                               ) : (
-                                <span className="text-emerald-400 text-xs font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-md ring-1 ring-emerald-500/30">Active</span>
+                                <span className="text-emerald-400 text-xs font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-md ring-1 ring-emerald-500/30">
+                                  Active
+                                </span>
                               )}
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center justify-end gap-3">
-                                <button onClick={() => openEditModal(user)} className="text-slate-400 hover:text-cyan-400 transition-colors" title="Edit User">
+                                <button
+                                  onClick={() => openEditModal(user)}
+                                  className="text-slate-400 hover:text-cyan-400 transition-colors"
+                                  title="Edit User"
+                                >
                                   <Edit size={18} />
                                 </button>
                                 <button
                                   onClick={() => handleToggleBlock(user)}
-                                  className={`transition-colors ${user.isBlocked ? "text-emerald-400 hover:text-emerald-300" : "text-amber-500 hover:text-amber-400"}`}
-                                  title={user.isBlocked ? "Unblock User" : "Block User"}
+                                  className={`transition-colors ${
+                                    user.isBlocked
+                                      ? "text-emerald-400 hover:text-emerald-300"
+                                      : "text-amber-500 hover:text-amber-400"
+                                  }`}
+                                  title={
+                                    user.isBlocked
+                                      ? "Unblock User"
+                                      : "Block User"
+                                  }
                                 >
-                                  {user.isBlocked ? <ShieldCheck size={18} /> : <ShieldAlert size={18} />}
+                                  {user.isBlocked ? (
+                                    <ShieldCheck size={18} />
+                                  ) : (
+                                    <ShieldAlert size={18} />
+                                  )}
                                 </button>
-                                <button onClick={() => openDeleteModal(user)} className="text-slate-400 hover:text-rose-500 transition-colors" title="Delete User">
+                                <button
+                                  onClick={() => openDeleteModal(user)}
+                                  className="text-slate-400 hover:text-rose-500 transition-colors"
+                                  title="Delete User"
+                                >
                                   <Trash2 size={18} />
                                 </button>
                               </div>
@@ -573,34 +768,54 @@ export default function UserManagement() {
                 </div>
               )
             ) : pendingLoading ? (
-              <div className="p-8 text-center text-slate-500">Loading requests...</div>
+              <div className="p-8 text-center text-slate-500">
+                Loading requests...
+              </div>
             ) : filteredRequests.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm whitespace-nowrap">
                   <thead className="bg-slate-800/50 text-slate-400 border-b border-slate-800">
                     <tr>
                       <th className="px-6 py-4 font-medium">Applicant Info</th>
-                      <th className="px-6 py-4 font-medium">Department / Pos.</th>
+                      <th className="px-6 py-4 font-medium">
+                        Department / Pos.
+                      </th>
                       <th className="px-6 py-4 font-medium">Reason</th>
-                      <th className="px-6 py-4 font-medium text-right">Actions</th>
+                      <th className="px-6 py-4 font-medium text-right">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
                     {filteredRequests.map((req) => (
-                      <tr key={req._id} className="hover:bg-slate-800/20 transition-colors">
+                      <tr
+                        key={req._id}
+                        className="hover:bg-slate-800/20 transition-colors"
+                      >
                         <td className="px-6 py-4">
                           <div className="font-semibold text-slate-200">
                             {req.firstName} {req.lastName}
                           </div>
-                          <div className="text-xs text-slate-500">{req.email}</div>
-                          <div className="text-xs text-slate-500">{req.phone}</div>
+                          <div className="text-xs text-slate-500">
+                            {req.email}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {req.phone}
+                          </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-slate-300">{req.department || "N/A"}</div>
-                          <div className="text-xs text-slate-500">{req.position || "N/A"}</div>
+                          <div className="text-slate-300">
+                            {req.department || "N/A"}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {req.position || "N/A"}
+                          </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="text-slate-400 max-w-xs truncate block" title={req.reason}>
+                          <span
+                            className="text-slate-400 max-w-xs truncate block"
+                            title={req.reason}
+                          >
                             {req.reason || "No reason provided"}
                           </span>
                         </td>
@@ -639,71 +854,106 @@ export default function UserManagement() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
             <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
-                <h2 className="text-lg font-bold text-white">{isEditOpen ? "Edit User Account" : "Add New User"}</h2>
-                <button onClick={closeFormModal} className="text-slate-500 hover:text-white transition-colors">
+                <h2 className="text-lg font-bold text-white">
+                  {isEditOpen ? "Edit User Account" : "Add New User"}
+                </h2>
+                <button
+                  onClick={closeFormModal}
+                  className="text-slate-500 hover:text-white transition-colors"
+                >
                   <X size={20} />
                 </button>
               </div>
-              <form onSubmit={isEditOpen ? handleEditUser : handleAddUser} className="p-6 flex flex-col gap-4">
+              <form
+                onSubmit={isEditOpen ? handleEditUser : handleAddUser}
+                className="p-6 flex flex-col gap-4"
+              >
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-400 mb-1">First Name</label>
+                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                      First Name
+                    </label>
                     <input
                       required
                       type="text"
                       value={formData.FirstName}
-                      onChange={(e) => setFormData({ ...formData, FirstName: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, FirstName: e.target.value })
+                      }
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-400 mb-1">Last Name</label>
+                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                      Last Name
+                    </label>
                     <input
                       required
                       type="text"
                       value={formData.LastName}
-                      onChange={(e) => setFormData({ ...formData, LastName: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, LastName: e.target.value })
+                      }
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Employee ID</label>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">
+                    Employee ID
+                  </label>
                   <input
                     required
                     type="text"
                     value={formData.EmployeeId}
-                    onChange={(e) => setFormData({ ...formData, EmployeeId: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        EmployeeId: e.target.value,
+                      })
+                    }
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Email Address</label>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">
+                    Email Address
+                  </label>
                   <input
                     required
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
                   />
                 </div>
                 {!isEditOpen && (
                   <div>
-                    <label className="block text-xs font-medium text-slate-400 mb-1">Temporary Password</label>
+                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                      Temporary Password
+                    </label>
                     <input
                       required
                       type="password"
                       value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, password: e.target.value })
+                      }
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
                     />
                   </div>
                 )}
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">System Role</label>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">
+                    System Role
+                  </label>
                   <select
                     value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, role: e.target.value })
+                    }
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
                   >
                     {Object.keys(ROLE_STYLES).map((role) => (
@@ -714,10 +964,17 @@ export default function UserManagement() {
                   </select>
                 </div>
                 <div className="flex justify-end gap-3 mt-4">
-                  <button type="button" onClick={closeFormModal} className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors">
+                  <button
+                    type="button"
+                    onClick={closeFormModal}
+                    className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+                  >
                     Cancel
                   </button>
-                  <button type="submit" className="px-4 py-2 text-sm font-medium text-slate-950 bg-cyan-500 hover:bg-cyan-400 rounded-lg transition-colors shadow-lg shadow-cyan-500/20">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-sm font-medium text-slate-950 bg-cyan-500 hover:bg-cyan-400 rounded-lg transition-colors shadow-lg shadow-cyan-500/20"
+                  >
                     {isEditOpen ? "Save Changes" : "Create User"}
                   </button>
                 </div>
@@ -733,7 +990,9 @@ export default function UserManagement() {
               <div className="w-12 h-12 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto mb-4">
                 <Trash2 size={24} />
               </div>
-              <h3 className="text-lg font-bold text-white mb-2">Delete User?</h3>
+              <h3 className="text-lg font-bold text-white mb-2">
+                Delete User?
+              </h3>
               <p className="text-sm text-slate-400 mb-6">
                 Are you sure you want to permanently delete{" "}
                 <strong className="text-slate-200">
@@ -742,7 +1001,10 @@ export default function UserManagement() {
                 ? This action cannot be undone.
               </p>
               <div className="flex gap-3">
-                <button onClick={() => setIsDeleteOpen(false)} className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors">
+                <button
+                  onClick={() => setIsDeleteOpen(false)}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+                >
                   Cancel
                 </button>
                 <button
@@ -761,7 +1023,15 @@ export default function UserManagement() {
 }
 
 // Custom Toast Content Component
-const ApproveToastContent = ({ t, request, onConfirm }: { t: Toast; request: PendingRequestData; onConfirm: (id: string, role: string) => void }) => {
+const ApproveToastContent = ({
+  t,
+  request,
+  onConfirm,
+}: {
+  t: { id: string };
+  request: PendingRequestData;
+  onConfirm: (id: string, role: string) => void;
+}) => {
   const [selectedRole, setSelectedRole] = useState("Operator");
 
   return (
@@ -774,7 +1044,9 @@ const ApproveToastContent = ({ t, request, onConfirm }: { t: Toast; request: Pen
       </p>
 
       <div className="flex flex-col gap-1">
-        <label className="text-[11px] font-medium text-slate-400">Assign System Role:</label>
+        <label className="text-[11px] font-medium text-slate-400">
+          Assign System Role:
+        </label>
         <select
           value={selectedRole}
           onChange={(e) => setSelectedRole(e.target.value)}
@@ -787,10 +1059,16 @@ const ApproveToastContent = ({ t, request, onConfirm }: { t: Toast; request: Pen
         </select>
       </div>
 
-      <div className="text-xs text-slate-500 bg-slate-800/50 p-2 rounded">💡 If this email exists in active users, the role will be updated. Otherwise, a new user will be created.</div>
+      <div className="text-xs text-slate-500 bg-slate-800/50 p-2 rounded">
+        💡 If this email exists in active users, the role will be updated.
+        Otherwise, a new user will be created.
+      </div>
 
       <div className="flex justify-end gap-2 mt-2">
-        <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-colors">
+        <button
+          onClick={() => toast.dismiss(t.id)}
+          className="px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
+        >
           Cancel
         </button>
         <button
