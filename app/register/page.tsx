@@ -5,60 +5,9 @@ import axios from "axios";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Mail, Phone, Building2, User, Briefcase, AlertCircle, CheckCircle } from "lucide-react";
 import Link from "next/link";
+import Loader from "../components/Loader";
 
 // Loading Component
-export function LoadingSpinner() {
-  const numDots = 18;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex flex-col items-center justify-center z-50 backdrop-blur-sm overflow-hidden">
-      {/* Loader Container */}
-      <div className="relative w-56 h-56 flex items-center justify-center">
-        {/* Spinning Comet Tail */}
-        <div className="absolute inset-0 animate-spin" style={{ animationDuration: "2s", animationTimingFunction: "linear" }}>
-          {[...Array(numDots)].map((_, i) => {
-            const rotation = (360 / numDots) * i;
-            const dotSize = 2 + i * 0.5;
-            const opacity = 0.1 + (i / numDots) * 0.9;
-
-            return (
-              <div
-                key={i}
-                className="absolute top-1/2 left-1/2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"
-                style={{
-                  width: `${dotSize}px`,
-                  height: `${dotSize}px`,
-                  opacity: opacity,
-                  transform: `translate(-50%, -50%) rotate(${rotation}deg) translateY(-100px)`,
-                }}
-              />
-            );
-          })}
-        </div>
-
-        {/* Rotating Ring */}
-        <div className="absolute inset-10 rounded-full border-2 border-blue-300 border-l-blue-500" style={{ animation: "spin 3s linear infinite reverse" }} />
-
-        {/* Center */}
-        <div className="relative z-10 w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-2xl border-2 border-blue-100">
-          <span className="text-2xl">📋</span>
-        </div>
-      </div>
-
-      {/* Text */}
-      <div className="mt-10 text-center">
-        <h2 className="text-white font-bold tracking-widest text-sm uppercase drop-shadow-lg">Processing...</h2>
-        <p className="text-white text-opacity-70 text-xs mt-2">Submitting your request</p>
-      </div>
-
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
-    </div>
-  );
-}
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -187,7 +136,7 @@ export default function RegisterPage() {
   return (
     <>
       {/* Loading Spinner */}
-      {loading && <LoadingSpinner />}
+      {loading && <Loader />}
 
       <div>
         <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-50 via-blue-50 to-slate-100 p-4">
