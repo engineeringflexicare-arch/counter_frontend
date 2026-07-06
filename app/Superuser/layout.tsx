@@ -4,11 +4,12 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Factory, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Factory, LogOut, Menu, X, TrendingUp } from "lucide-react";
 import NotificationDropdown from "../components/NotificationDropdown";
 import { BiLayer } from "react-icons/bi";
 import { RiMenuFold2Line } from "react-icons/ri";
 import { FaUserPlus } from "react-icons/fa";
+import { SiGoogleanalytics } from "react-icons/si";
 
 export default function SupervisorLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -64,6 +65,16 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
       name: "Manufacturing Floor",
       href: "/Superuser/ManufacturingFloor",
       icon: Factory,
+    },
+    {
+      name: "Analytics",
+      href: "/Superuser/Analytics",
+      icon: TrendingUp,
+    },
+    {
+      name: "Trends",
+      href: "/Superuser/Trends",
+      icon: SiGoogleanalytics,
     },
     {
       name: "User Management",
