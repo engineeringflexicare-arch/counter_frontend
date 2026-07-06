@@ -25,7 +25,7 @@ interface HourlyItem {
   output: number;
 }
 
-const FLOOR_NAME = "Assembly Floor";
+const FLOOR_NAME = "Assembly_Floor";
 const REFRESH_INTERVAL = 300000; // විනාඩි 5කට වරක් (5 * 60 * 1000)
 
 export default function AssemblyFloorPage() {

@@ -8,6 +8,7 @@ import Image from "next/image";
 import { MdOutlineAccountTree, MdOutlinePrecisionManufacturing } from "react-icons/md";
 import { BiLayer } from "react-icons/bi";
 import { SidebarContext } from "@/app/context/SidebarContext";
+import { GiRingMould } from "react-icons/gi";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -57,6 +58,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: "Manufacturing Floor", href: "/Admin/manufacturing-floor", icon: MdOutlinePrecisionManufacturing },
     { name: "Counters", href: "/Admin/factories", icon: MdOutlineAccountTree },
     { name: "Settings", href: "/Admin/settings", icon: Settings },
+    { name: "Mould Management Dashboard", href: "/Admin/MouldManagementDashboard", icon: GiRingMould },
+    { name: "Machines Management", href: "/Admin/Machinemanagementpage", icon: Bell },
   ];
 
   const handleLogout = () => {

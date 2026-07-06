@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Save, Cpu, Clock, Package, Target, Users, SunMoon, Building } from "lucide-react";
 import axios from "axios";
+import api from "@/lib/api";
 
 // ==========================================
 // Types & Interfaces
@@ -12,7 +13,8 @@ interface MachineData {
 }
 
 interface MachineListItem {
-  machineId: string;
+  machineId?: string;
+  device_id?: string;
 }
 
 interface LineData {
@@ -39,8 +41,6 @@ const readStoredToken = (): string | null => {
 // Main Component
 // ==========================================
 export default function LineAssignmentPanel() {
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
-
   // --- States ---
   const [lines, setLines] = useState<Record<string, LineData>>({});
   const [machines, setMachines] = useState<Record<string, MachineData>>({});
@@ -78,8 +78,7 @@ export default function LineAssignmentPanel() {
     return authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
   };
 
-  // ✅ FIX: Move data fetching logic directly into useEffect instead of calling a function
-  // This avoids the setState-in-effect warning by not including the function in dependencies
+  // ✅ Data fetching logic
   useEffect(() => {
     let isMounted = true; // Prevent state updates if component unmounts
 
@@ -92,16 +91,16 @@ export default function LineAssignmentPanel() {
 
         const localAuthHeaders = { Authorization: `Bearer ${authToken}` };
 
-        // ✅ Use /api/lines/ instead of /api/esp32/lines
-        const linesResponse = await axios.get(`${API_BASE_URL}/api/lines/`, {
+        // 1. Fetch Lines
+        const linesResponse = await api.get(`/api/lines/`, {
           headers: localAuthHeaders,
         });
         if (isMounted && linesResponse.data.success && linesResponse.data.data) {
           setLines(linesResponse.data.data);
         }
 
-        // ✅ Use /api/esp32/machines/free instead of /api/esp32/lines/machines
-        const machinesResponse = await axios.get(`${API_BASE_URL}/api/esp32/machines/free`, {
+        // 2. Fetch Available Machines (✅ CORRECTED URL & LOGIC)
+        const machinesResponse = await api.get(`/api/lines/available-machines`, {
           headers: localAuthHeaders,
         });
 
@@ -110,8 +109,13 @@ export default function LineAssignmentPanel() {
 
           // Handle if response is an array
           const machineList = Array.isArray(machinesResponse.data.data) ? machinesResponse.data.data : [];
+
           machineList.forEach((item: MachineListItem) => {
-            machineData[item.machineId] = {};
+            // Backend එකෙන් machineId හෝ device_id ලෙස ආවත් අල්ලාගැනීම
+            const id = item.machineId || item.device_id;
+            if (id) {
+              machineData[id] = {};
+            }
           });
 
           setMachines(machineData);
@@ -134,7 +138,7 @@ export default function LineAssignmentPanel() {
     return () => {
       isMounted = false;
     };
-  }, [authToken, API_BASE_URL]); // Only depend on stable values
+  }, [authToken]); // Only depend on stable values
 
   // --- Handle Assign Line ---
   const handleAssignLine = async () => {
@@ -165,8 +169,7 @@ export default function LineAssignmentPanel() {
         floor,
       };
 
-      // ✅ Use /api/lines/assign
-      const response = await axios.post(`${API_BASE_URL}/api/lines/assign`, payload, {
+      const response = await api.post(`/api/lines/assign`, payload, {
         headers: getAuthHeaders(),
       });
 
@@ -174,7 +177,7 @@ export default function LineAssignmentPanel() {
         setMessage("✓ Line assigned successfully");
 
         // Refresh the lines data
-        const linesResponse = await axios.get(`${API_BASE_URL}/api/lines/`, {
+        const linesResponse = await api.get(`/api/lines/`, {
           headers: getAuthHeaders(),
         });
         if (linesResponse.data.success && linesResponse.data.data) {

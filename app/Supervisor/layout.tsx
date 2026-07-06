@@ -2,11 +2,26 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Factory, LogOut, Menu, X, ClipboardList, Settings } from "lucide-react";
 import NotificationDropdown from "../components/NotificationDropdown";
 import { RiMenuFold2Line } from "react-icons/ri";
+
+// --- External store helpers (avoid setState-in-effect) ---
+
+// "mounted" flag: false on server, true once hydrated on client
+const noopSubscribe = () => () => {};
+const getIsClientSnapshot = () => true;
+const getIsClientServerSnapshot = () => false;
+
+// userName: read from localStorage, re-synced on "storage" events
+function subscribeToUserName(callback: () => void) {
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
+}
+const getUserNameSnapshot = () => localStorage.getItem("userName") || "User";
+const getUserNameServerSnapshot = () => "User";
 
 export default function SupervisorLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -16,13 +31,9 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
   const [collapsed, setCollapsed] = useState(false);
   const [currentTime, setCurrentTime] = useState("");
 
-  // Safe Client-Side State Initialization (Fixes ESLint error)
-  const [userName] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("userName") || "User";
-    }
-    return "User";
-  });
+  // Hydration-safe client values (no useEffect/setState needed)
+  const mounted = useSyncExternalStore(noopSubscribe, getIsClientSnapshot, getIsClientServerSnapshot);
+  const userName = useSyncExternalStore(subscribeToUserName, getUserNameSnapshot, getUserNameServerSnapshot);
 
   // Real-Time Clock Lifecycle
   useEffect(() => {
@@ -47,26 +58,10 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
   }, []);
 
   const menuItems = [
-    {
-      name: "Dashboard",
-      href: "/Supervisor",
-      icon: LayoutDashboard,
-    },
-    {
-      name: "Line Assignment",
-      href: "/Supervisor/line-assignment",
-      icon: Factory,
-    },
-    {
-      name: "Lines Update",
-      href: "/Supervisor/line_update",
-      icon: ClipboardList,
-    },
-    {
-      name: "ManageLinesPanel",
-      href: "/Supervisor/ManageLinesPage",
-      icon: Settings,
-    },
+    { name: "Dashboard", href: "/Supervisor", icon: LayoutDashboard },
+    { name: "Line Assignment", href: "/Supervisor/line-assignment", icon: Factory },
+    { name: "Lines Update", href: "/Supervisor/line_update", icon: ClipboardList },
+    { name: "ManageLinesPanel", href: "/Supervisor/ManageLinesPage", icon: Settings },
   ];
 
   const handleLogout = () => {
@@ -150,7 +145,7 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
 
         {/* Footer Actions */}
         <div className="p-4 border-t border-slate-800">
-          {!collapsed && (
+          {!collapsed && mounted && (
             <div className="bg-slate-800 rounded-xl p-4 mb-3">
               <p className="text-xs text-slate-400">Logged in as</p>
               <p className="font-bold text-lg">{userName}</p>
@@ -207,12 +202,17 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
 
             {/* User Meta Data */}
             <div className="hidden md:block text-right">
-              <p className="text-sm font-semibold text-slate-700">{userName}</p>
+              {mounted ? (
+                <p className="text-sm font-semibold text-slate-700">{userName}</p>
+              ) : (
+                <p className="text-sm font-semibold text-slate-700 opacity-0">User</p>
+                /* Note: Kept text but invisible before mount to prevent layout shift */
+              )}
               <p className="text-xs text-slate-500">Production Department</p>
             </div>
 
             {/* Dynamic Avatar Initials */}
-            <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">{userName.charAt(0).toUpperCase()}</div>
+            <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">{mounted ? userName.charAt(0).toUpperCase() : "U"}</div>
           </div>
         </header>
 

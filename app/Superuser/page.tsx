@@ -50,16 +50,22 @@ export default function SuperuserDashboard() {
       const res = await api.get(`/api/lines`);
       const data: Line[] = res.data?.data || [];
 
-      // Fetch Machine Health Status
+      // Fetch Machine Health + Live Count Status
       const healthRes = await api.get(`/api/esp32/machine-status`).catch(() => null);
       const healthData = healthRes?.data?.data || [];
 
       if (Array.isArray(data)) {
         const linesArray: Line[] = data.map((line) => {
-          const mHealth = healthData.find((h: MachineHealth) => h.machineId === line.machineId);
+          const mStatus = healthData.find((h: MachineHealth & { liveCount?: number }) => h.machineId === line.machineId);
+
           return {
             ...line,
-            health: mHealth,
+            health: mStatus,
+            // ✅ FIX: merge live Firebase count into totalProductCount.
+            // Previously this was never populated from anywhere, so
+            // "Total Products", the Output bars, and each LineCard's
+            // current progress always showed 0.
+            totalProductCount: mStatus?.liveCount ?? line.totalProductCount ?? 0,
           };
         });
 
