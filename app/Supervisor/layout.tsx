@@ -164,6 +164,7 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
               py-3
               transition-all
               font-semibold
+              mb-3
             `}
           >
             <Settings size={18} />
