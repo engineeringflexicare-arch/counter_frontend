@@ -8,8 +8,6 @@ import { Lock, User, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import FLoader from "../components/Floader";
 
-// Full Screen CometTail Loader Component
-
 export default function LoginPage() {
   const [employeeNumber, setEmployeeNumber] = useState("");
   const [password, setPassword] = useState("");
@@ -32,33 +30,30 @@ export default function LoginPage() {
       return;
     }
 
-    console.log("🔥 Employee Number:", employeeNumber);
-    console.log("🚀 API is calling to:", API_BASE_URL);
-
     try {
       const response = await axios.post(`${API_BASE_URL}/api/users/login`, {
         EmployeeNumber: employeeNumber,
         password: password,
       });
 
-      console.log("🔥 Backend Login Response:", response.data);
-
       const { token, role, Role, name, Firstname, user } = response.data;
 
       const finalRole = role || Role || (user && user.Role) || "User";
       const finalName = name || Firstname || (user && user.Firstname) || "Unknown User";
-
-      console.log("✅ Saved to LocalStorage -> Name:", finalName, "| Role:", finalRole);
+      const finalEmail = (user && user.email) || "";
 
       localStorage.setItem("token", token);
       localStorage.setItem("userRole", finalRole);
       localStorage.setItem("userName", finalName);
+      // ✅ email එකත් save කරනවා - forgot-password page එකේ auto-fill වෙන්න
+      if (finalEmail) {
+        localStorage.setItem("userEmail", finalEmail);
+      }
 
       // Set cookies for Next.js middleware
       document.cookie = `token=${token}; path=/; max-age=28800; samesite=strict`;
       document.cookie = `userRole=${finalRole}; path=/; max-age=28800; samesite=strict`;
 
-      // Redirect after 1s
       setTimeout(() => {
         switch (finalRole) {
           case "Admin":
@@ -77,12 +72,7 @@ export default function LoginPage() {
             router.push("/dashboard");
         }
       }, 1000);
-
-      // මෙහිදී setLoading(false) කරන්නේ නැත. Page එක redirect වෙනකම් Loader එක පෙන්වයි.
     } catch (err: unknown) {
-      console.error(err);
-
-      // Error එකක් ආවොත් පමණක් Loader එක නවත්වන්න
       setLoading(false);
 
       let errorMessage = "Login failed. Please check your credentials.";
@@ -99,18 +89,14 @@ export default function LoginPage() {
 
   return (
     <>
-      {/* Full Screen CometTail Loader */}
       {loading && <FLoader />}
 
       <div>
         <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-50 via-blue-50 to-slate-100 p-4">
           <div className="w-full max-w-md">
-            {/* Logo Section */}
             <div className="flex justify-center mb-8"></div>
 
-            {/* Card */}
             <div className="bg-white rounded-3xl shadow-2xl p-8 border border-slate-200">
-              {/* Header */}
               <div className="text-center mb-8 flex flex-col items-center justify-center">
                 <h2 className="text-3xl font-bold text-slate-900 mb-2">Welcome to Flexicare</h2>
                 <p className="text-slate-500 text-sm">Sign in to your Flexicare account</p>
@@ -119,7 +105,6 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Error Message */}
               {error && (
                 <div className="mb-6 p-4 bg-red-50 text-red-700 text-sm rounded-2xl border border-red-200 flex gap-3">
                   <span className="text-lg">⚠️</span>
@@ -127,9 +112,7 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {/* Form */}
               <form onSubmit={handleLogin} className="space-y-5">
-                {/* Employee Number Input */}
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">Employee Number</label>
                   <div className="relative">
@@ -146,7 +129,6 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Password Input */}
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <label className="block text-sm font-semibold text-slate-700">Password</label>
@@ -176,7 +158,6 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Submit Button */}
                 <button
                   type="submit"
                   disabled={loading}
@@ -186,14 +167,12 @@ export default function LoginPage() {
                 </button>
               </form>
 
-              {/* Divider */}
               <div className="my-6 flex items-center gap-3">
                 <div className="flex-1 h-px bg-slate-200"></div>
                 <span className="text-xs text-slate-400">OR</span>
                 <div className="flex-1 h-px bg-slate-200"></div>
               </div>
 
-              {/* Additional Options */}
               <div className="text-center">
                 <p className="text-sm text-slate-600 mb-4">
                   Don&apos;t have an account?{" "}
@@ -203,13 +182,11 @@ export default function LoginPage() {
                 </p>
               </div>
 
-              {/* Footer */}
               <div className="mt-6 pt-6 border-t border-slate-200 text-center text-xs text-slate-500">
                 <p>🔒 Your account is secure and encrypted</p>
               </div>
             </div>
 
-            {/* Bottom Text */}
             <div className="text-center mt-6 text-xs text-slate-600">
               <p>© {new Date().getFullYear()} Flexicare. All rights reserved.</p>
             </div>

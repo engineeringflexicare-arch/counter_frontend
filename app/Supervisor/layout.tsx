@@ -152,6 +152,23 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
             </div>
           )}
 
+          <Link
+            href="/forgot-password"
+            className={`
+              w-full
+              flex items-center
+              ${collapsed ? "justify-center" : "justify-center gap-2"}
+              bg-slate-800
+              hover:bg-slate-700
+              rounded-xl
+              py-3
+              transition-all
+              font-semibold
+            `}
+          >
+            <Settings size={18} />
+            {!collapsed && "Reset Password"}
+          </Link>
           <button
             onClick={handleLogout}
             className={`
