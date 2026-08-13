@@ -1,5 +1,6 @@
 "use client";
 
+import axios from "axios";
 import { useEffect, useState, use } from "react";
 import api from "@/lib/api"; // අපේ custom axios instance එක import කරගැනීම
 import ProductionTable from "@/app/components/ProductionTable";
@@ -35,8 +36,24 @@ export default function Page({ params }: PageProps) {
     const fetchLineDetails = async () => {
       try {
         setLoading(true);
-        // සාමාන්‍ය fetch වෙනුවට අපි හදාගත් 'api' එක භාවිත කිරීම (Token එක යැවීමට)
-        const lineRes = await api.get(`/api/lines/${lineId}`);
+        let lineRes: any;
+
+        try {
+          lineRes = await api.get(`/api/lines/${lineId}`);
+        } catch (err) {
+          const axiosErr = err as { response?: { status?: number } };
+          if (axiosErr.response?.status === 404) {
+            const linesRes = await api.get("/api/lines");
+            const foundLine = (linesRes.data?.data || []).find((line: any) => line.lineId === lineId);
+            if (foundLine) {
+              lineRes = { data: { success: true, data: foundLine } };
+            } else {
+              throw err;
+            }
+          } else {
+            throw err;
+          }
+        }
 
         if (lineRes.data?.success) {
           const fetchedMachineId = lineRes.data.data?.machineId;

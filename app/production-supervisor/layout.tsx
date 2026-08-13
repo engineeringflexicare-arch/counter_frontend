@@ -4,11 +4,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { Activity, CalendarDays, ClipboardList, Factory, Gauge, LayoutDashboard, LayoutGrid, LogOut, Menu, Settings, Sparkles, TrendingUp, X } from "lucide-react";
+import { ClipboardList, LayoutDashboard, LogOut, Menu, X } from "lucide-react";
 import NotificationDropdown from "../components/NotificationDropdown";
 import { RiMenuFold2Line } from "react-icons/ri";
 
-export default function PlaningSectionLayout({ children }: { children: React.ReactNode }) {
+export default function ProductionionSectionLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -17,7 +17,7 @@ export default function PlaningSectionLayout({ children }: { children: React.Rea
 
   // User States
   const [userName, setUserName] = useState("User");
-  const [userDepartment, setUserDepartment] = useState("Planning");
+  const [userDepartment, setUserDepartment] = useState("Production");
 
   useEffect(() => {
     // LocalStorage එකෙන් දත්ත ගැනීම
@@ -52,63 +52,18 @@ export default function PlaningSectionLayout({ children }: { children: React.Rea
   const menuItems = [
     {
       name: "Dashboard",
-      href: "/Planingsection",
+      href: "/production-supervisor",
       icon: LayoutDashboard,
     },
     {
-      name: "Production Plans",
-      href: "/Planingsection/Productionplaning",
+      name: "Machine Update",
+      href: "/production-supervisor/line_update",
       icon: ClipboardList,
     },
     {
-      name: "Planning Dashboard",
-      href: "/Planingsection/Planning",
+      name: "Machine Management Panel",
+      href: "/production-supervisor/line-assignment",
       icon: LayoutDashboard,
-    },
-    {
-      name: "Sales Orders",
-      href: "/Planingsection/Planning/sales-orders",
-      icon: Factory,
-    },
-    {
-      name: "Scheduler",
-      href: "/Planingsection/Planning/scheduler",
-      icon: CalendarDays,
-    },
-    {
-      name: "Machine Calendar",
-      href: "/Planingsection/Planning/machine-calendar",
-      icon: Activity,
-    },
-    {
-      name: "Capacity",
-      href: "/Planingsection/Planning/capacity",
-      icon: LayoutGrid,
-    },
-    {
-      name: "Tool Calendar",
-      href: "/Planingsection/Planning/tool-calendar",
-      icon: Gauge,
-    },
-    {
-      name: "Simulation",
-      href: "/Planingsection/Planning/simulation",
-      icon: Sparkles,
-    },
-    {
-      name: "KPIs",
-      href: "/Planingsection/Planning/kpis",
-      icon: TrendingUp,
-    },
-    {
-      name: "Machine Planning",
-      href: "/Planingsection/MachinePlaning",
-      icon: ClipboardList,
-    },
-    {
-      name: "Inventory",
-      href: "/Planingsection/Inventory",
-      icon: Settings,
     },
   ];
 
@@ -143,7 +98,7 @@ export default function PlaningSectionLayout({ children }: { children: React.Rea
         {/* Logo */}
         <div className="p-3 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Logo" width={60} height={60} className="rounded-full border-slate-50 p-1 border-2" />
+            <Image src="/logo.svg" alt="Logo" width={60} height={60} className="rounded-full border-slate-50 p-1 border-2" />
 
             {!collapsed && (
               <div>

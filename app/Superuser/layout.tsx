@@ -98,14 +98,14 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
       <aside
         className={`
           fixed lg:sticky top-0 left-0 z-50
-          h-screen
+          h-screen min-h-0
           ${collapsed ? "w-20" : "w-72"}
           bg-linear-to-b
           from-slate-950
           via-slate-900
           to-slate-950
           text-white
-          flex flex-col
+          flex flex-col overflow-y-auto
           transition-all duration-300 ease-in-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         `}

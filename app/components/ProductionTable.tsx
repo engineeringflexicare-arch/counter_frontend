@@ -8,6 +8,8 @@ import { FileSpreadsheet, FileText, FileDown, Loader2 } from "lucide-react";
 
 interface ApiLineData {
   lineId?: string;
+  injectionMachineNumber?: string; // ✅ Added to support Injection Machines
+  cavities?: number; // ✅ Added for Cavity support
   floor?: string;
   machineId?: string;
   shift?: string;
@@ -20,11 +22,6 @@ interface ApiLineData {
 }
 
 interface ProductionTableProps {
-  // ✅ FIX: Lines data eka parent component eken (Asemblyfoor/page.tsx) pass karanawa.
-  // Mehema unata kalin, ProductionTable eka tamange wenama "/api/lines" call ekak
-  // karaganna, eka Asemblyfoor page eke karapu call ekata uda double traffic ekak
-  // hadala, browser eke connection pool eka exhaust karala, siyalu requests "pending"
-  // widihata stuck karala dunna.
   linesData: ApiLineData[];
   floor?: string;
   lineId?: string;
@@ -34,6 +31,7 @@ interface ProductionTableProps {
 interface TableRow {
   assemblyLine: string;
   productCode: string;
+  cavities?: number; // ✅ Added to row
   plannedMembers: number;
   hourlyTarget: number;
   dailyTarget: number;
@@ -112,8 +110,12 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
             return `<td>${esc(hourlyOutput)}</td><td>${esc(hourlyPercent)}%</td><td>${esc(cumulative)}</td>`;
           })
           .join("");
+
+        // Add cavity info to export if exists
+        const productText = row.cavities && row.cavities > 1 ? `${row.productCode} (Cav: ${row.cavities})` : row.productCode;
+
         return `<tr>
-          <td>${esc(row.assemblyLine)}</td><td>${esc(row.productCode)}</td>
+          <td>${esc(row.assemblyLine)}</td><td>${esc(productText)}</td>
           <td>${esc(row.runStartTime ? row.runStartTime.split(" ")[1] || row.runStartTime : row.shiftStartTime)}</td>
           <td>${esc(row.runEndTime ? row.runEndTime.split(" ")[1] || row.runEndTime : row.shiftEndTime)}</td>
           <td>${esc(row.hourlyTarget)}</td><td>${esc(row.dailyTarget)}</td>
@@ -164,10 +166,6 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
   };
 
   // ── Data fetching ─────────────────────────────────────────
-  // ✅ FIX: "/api/lines" call eka mulinma ain kara. linesData eka prop ekak widihata
-  // dan ena nisa, mehe witharak "/api/esp32/hourly-production" calls karanawa —
-  // eth eka parent eken already filter karapu lines walata witharak (machineId thiyena
-  // lines walata witharak), eka nisa request gananath wadi welawa thiyenawa.
   useEffect(() => {
     let isMounted = true;
 
@@ -185,8 +183,10 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
 
         const linesMap: Record<string, ApiLineData> = {};
         linesArrayFiltered.forEach((line) => {
-          if (line.lineId) {
-            linesMap[line.lineId] = line;
+          // ✅ FIX: Support both Normal Lines and Injection Machines
+          const idKey = line.lineId || line.injectionMachineNumber;
+          if (idKey) {
+            linesMap[idKey] = line;
           }
         });
 
@@ -194,7 +194,7 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
 
         const rowGroupPromises = Object.entries(filteredData).map(async ([lineKey, lineValue]): Promise<TableRow[]> => {
           const line = lineValue as ApiLineData;
-          if (!line.machineId) return [];
+          const targetMachineId = line.machineId;
 
           const startTime = line.shiftStartTime || "00:00";
           const endTime = line.shiftEndTime || "00:00";
@@ -202,6 +202,7 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
 
           const baseRow = {
             productCode: line.productCode || "-",
+            cavities: line.cavities || 1, // ✅ Added cavity tracking
             plannedMembers: line.plannedMembers || 0,
             hourlyTarget: line.hourlyTarget || 0,
             dailyTarget: line.dailyTarget || 0,
@@ -219,9 +220,14 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
             params.set("shiftStartTime", startTime);
             params.set("shiftEndTime", endTime);
 
-            const res = await api.get(`/api/esp32/hourly-production/${line.machineId}`, {
-              params: params,
-            });
+            let res;
+            if (targetMachineId) {
+              res = await api.get(`/api/esp32/hourly-production/${targetMachineId}`, {
+                params: params,
+              });
+            } else {
+              return [{ ...baseRow, assemblyLine: lineLabel, hourlyData: {}, totalOutput: 0 }];
+            }
 
             if (!res.data?.success) {
               return [{ ...baseRow, assemblyLine: lineLabel, hourlyData: {}, totalOutput: 0 }];
@@ -338,7 +344,6 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-slate-700 shadow-sm">
         <table className="w-full border-collapse text-center text-sm">
-          {/* ── thead ── */}
           <thead>
             <tr className="bg-[#b8cbdd] text-gray-900 text-xs font-bold">
               <th className="border border-slate-700 px-3 py-3">Assembly Line</th>
@@ -355,7 +360,6 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
             </tr>
           </thead>
 
-          {/* ── tbody ── */}
           <tbody className="bg-white">
             {rows.map((row, idx) => {
               const pct = row.dailyTarget > 0 ? ((row.totalOutput / row.dailyTarget) * 100).toFixed(1) : "0.0";
@@ -370,8 +374,14 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
                     {row.runCount && row.runCount > 1 && <div className="text-[10px] font-normal text-amber-600 mt-0.5">Reset detected — {row.runCount} runs</div>}
                   </td>
 
-                  {/* Product code */}
-                  <td className="border border-slate-700 px-3 py-3 font-medium">{row.productCode}</td>
+                  {/* Product code with Cavity Tag */}
+                  <td className="border border-slate-700 px-3 py-3 font-medium">
+                    <div>{row.productCode}</div>
+                    {/* ✅ Display Cavity badge if cavities > 1 */}
+                    {row.cavities && row.cavities > 1 && (
+                      <div className="inline-block mt-1 px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-semibold border border-slate-200">Cavities: {row.cavities}</div>
+                    )}
+                  </td>
 
                   {/* Total output */}
                   <td className="border border-slate-700 px-3 py-3 font-bold text-blue-700">{row.totalOutput}</td>
@@ -385,10 +395,7 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
                     </span>
                   </td>
 
-                  {/* Start time */}
                   <td className="border border-slate-700 px-3 py-3 font-medium text-emerald-600">{row.runStartTime ? row.runStartTime.split(" ")[1] || row.runStartTime : row.shiftStartTime}</td>
-
-                  {/* End time */}
                   <td className="border border-slate-700 px-3 py-3 font-medium text-rose-600">{row.runEndTime ? row.runEndTime.split(" ")[1] || row.runEndTime : row.shiftEndTime}</td>
 
                   {/* Hourly cells */}
@@ -410,7 +417,6 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
             })}
           </tbody>
 
-          {/* ── tfoot — Grand Total ── */}
           {(() => {
             const grandTotal = rows.reduce((sum, r) => sum + r.totalOutput, 0);
             return (
@@ -421,7 +427,6 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
                   </td>
                   <td className="border border-slate-700 px-3 py-3 text-blue-700 text-base">{grandTotal.toLocaleString()}</td>
                   <td colSpan={3} className="border border-slate-700 px-3 py-3"></td>
-
                   {hourLabels.map((hour, i) => {
                     const hourTotal = rows.reduce((sum, r) => sum + (r.hourlyData[hour] || 0), 0);
                     return (
@@ -436,10 +441,6 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
           })()}
         </table>
       </div>
-
-      <p className="text-right text-xs text-slate-400 font-medium mt-2">
-        {rows.length} {rows.length === 1 ? "line" : "lines"} · Auto-refreshing every 60s
-      </p>
     </div>
   );
 }

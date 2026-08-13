@@ -84,13 +84,20 @@ export default function ProductionGapChart({ lineId, date }: ProductionGapChartP
 
     const fetchData = async () => {
       try {
-        let url = `/api/esp32/production-gaps?lineId=${lineId}`;
+        // Determine whether the provided id should be treated as a lineId or a machineId.
+        // If it starts with INJ_ or LINE_ (case-insensitive) treat it as a lineId,
+        // otherwise treat it as a machineId.
+        const isPrefixedLine = /^INJ_|^LINE_/i.test(lineId);
 
-        if (date) {
-          url += `&date=${date}`;
+        const params: Record<string, any> = {};
+        if (isPrefixedLine) {
+          params.lineId = lineId;
+        } else {
+          params.machineId = lineId;
         }
+        if (date) params.date = date;
 
-        const response = await api.get<ApiResponse>(url);
+        const response = await api.get<ApiResponse>("/api/esp32/production-gaps", { params });
 
         if (response.data?.success) {
           const plannedGap = Number(response.data.averageGap) || 0;

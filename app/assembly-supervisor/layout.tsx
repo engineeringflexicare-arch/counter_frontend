@@ -58,10 +58,10 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
   }, []);
 
   const menuItems = [
-    { name: "Dashboard", href: "/Supervisor", icon: LayoutDashboard },
-    { name: "Line Assignment", href: "/Supervisor/line-assignment", icon: Factory },
-    { name: "Lines Update", href: "/Supervisor/line_update", icon: ClipboardList },
-    { name: "ManageLinesPanel", href: "/Supervisor/ManageLinesPage", icon: Settings },
+    { name: "Dashboard", href: "/supervisor", icon: LayoutDashboard },
+    { name: "Line Assignment", href: "/assembly-supervisor/line-assignment", icon: Factory },
+    { name: "Lines Update", href: "/assembly-supervisor/line_update", icon: ClipboardList },
+    { name: "ManageLinesPanel", href: "/assembly-supervisor/ManageLinesPage", icon: Settings },
   ];
 
   const handleLogout = () => {

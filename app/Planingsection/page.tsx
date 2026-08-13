@@ -391,7 +391,7 @@ export default function MainDashboard() {
         {/* ── 4-Panel Detail Grid ── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* ── Production Plans ── */}
-          <SectionCard title="Production Plans" icon={Calendar} accent="bg-blue-600" href="/Planingsection" loading={loading}>
+          <SectionCard title="Production Plans" icon={Calendar} accent="bg-blue-600" href="/Planingsection/Productionplaning" loading={loading}>
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-gray-50">
@@ -422,7 +422,7 @@ export default function MainDashboard() {
                 )}
               </tbody>
             </table>
-            <Link href="/Planingsection" className="mt-4 flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+            <Link href="/Planingsection/Productionplaning" className="mt-4 flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors">
               Manage plans <ArrowRight size={12} />
             </Link>
           </SectionCard>
