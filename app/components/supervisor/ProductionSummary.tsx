@@ -8,7 +8,7 @@ interface ProductionSummaryProps {
   type?: "assembly" | "production";
 }
 
-export default function ProductionSummary({ metrics, type = "production" }: ProductionSummaryProps) {
+export default function ProductionSummary({ metrics }: ProductionSummaryProps) {
   const efficiency = Math.round(metrics.efficiency);
   const oee = Math.round(metrics.oee);
   const gap = metrics.targetProduction - metrics.totalProduction;

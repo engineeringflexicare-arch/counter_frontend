@@ -2,7 +2,6 @@
 
 import { LineData } from "@/types/Supervisor";
 import Link from "next/link";
-import MachineHealthBadge from "../MachineHealthBadge";
 
 interface LineStatusCardProps {
   line: LineData;
@@ -74,7 +73,9 @@ export default function LineStatusCard({ line, supervisorPath }: LineStatusCardP
           <p className="text-xs text-gray-600 uppercase tracking-wide mb-3">Machines</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {line.machines.map((machine) => (
-              <MachineHealthBadge key={machine.id} name={machine.name} status={machine.status} oee={machine.oee} />
+              <div key={machine.id} className="flex items-center gap-1 text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded-full w-fit">
+                <span>{machine.name}</span>
+              </div>
             ))}
           </div>
         </div>

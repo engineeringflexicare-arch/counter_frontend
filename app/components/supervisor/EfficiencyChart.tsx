@@ -12,7 +12,7 @@ interface EfficiencyChartProps {
   type?: "bar" | "line";
 }
 
-export default function EfficiencyChart({ title, data, type = "bar" }: EfficiencyChartProps) {
+export default function EfficiencyChart({ title, data }: EfficiencyChartProps) {
   const maxValue = Math.max(...data.map((d) => Math.max(d.value, d.target || 0)));
 
   return (

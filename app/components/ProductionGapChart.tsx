@@ -89,7 +89,7 @@ export default function ProductionGapChart({ lineId, date }: ProductionGapChartP
         // otherwise treat it as a machineId.
         const isPrefixedLine = /^INJ_|^LINE_/i.test(lineId);
 
-        const params: Record<string, any> = {};
+        const params: Record<string, string> = {};
         if (isPrefixedLine) {
           params.lineId = lineId;
         } else {
