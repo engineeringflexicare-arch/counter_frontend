@@ -187,9 +187,9 @@ export default function UserManagement() {
       EmployeeId: String(user.EmployeeId),
       email: user.email,
       password: "",
-      phone: (user as any).phone || "",
-      department: (user as any).department || "",
-      position: (user as any).position || "",
+      phone: user.phone || "",
+      department: user.department || "",
+      position: user.position || "",
       isBlocked: !!user.isBlocked,
       role: user.role,
     });
@@ -324,6 +324,10 @@ export default function UserManagement() {
           EmployeeId: "",
           email: "",
           password: "",
+          phone: "",
+          department: "",
+          position: "",
+          isBlocked: false,
           role: "Operator",
         });
         fetchUsers();
@@ -357,8 +361,10 @@ export default function UserManagement() {
     const toastId = toast.loading("Updating user...");
     try {
       // Only send password if provided
-      const payload: any = { ...formData };
-      if (!payload.password) delete payload.password;
+      const payload: Partial<typeof formData> & { password?: string } = { ...formData };
+      if (!payload.password) {
+        delete payload.password;
+      }
 
       const res = await api.put(`/api/users/${selectedUser._id}`, payload, {
         headers: { Authorization: `Bearer ${getToken()}` },
@@ -527,6 +533,10 @@ export default function UserManagement() {
                     EmployeeId: "",
                     email: "",
                     password: "",
+                    phone: "",
+                    department: "",
+                    position: "",
+                    isBlocked: false,
                     role: "Operator",
                   });
                   setIsAddOpen(true);
@@ -797,7 +807,7 @@ export default function UserManagement() {
                   <label className="block text-xs font-medium text-slate-400 mb-1">Phone Number</label>
                   <input
                     type="text"
-                    value={(formData as any).phone}
+                    value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
                   />
@@ -807,7 +817,7 @@ export default function UserManagement() {
                     <label className="block text-xs font-medium text-slate-400 mb-1">Department</label>
                     <input
                       type="text"
-                      value={(formData as any).department}
+                      value={formData.department}
                       onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
                     />
@@ -816,7 +826,7 @@ export default function UserManagement() {
                     <label className="block text-xs font-medium text-slate-400 mb-1">Position</label>
                     <input
                       type="text"
-                      value={(formData as any).position}
+                      value={formData.position}
                       onChange={(e) => setFormData({ ...formData, position: e.target.value })}
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
                     />
@@ -825,7 +835,7 @@ export default function UserManagement() {
                 {/* Blocked toggle */}
                 {isEditOpen && (
                   <div className="flex items-center gap-3">
-                    <input id="isBlocked" type="checkbox" checked={(formData as any).isBlocked} onChange={(e) => setFormData({ ...formData, isBlocked: e.target.checked })} className="w-4 h-4" />
+                    <input id="isBlocked" type="checkbox" checked={formData.isBlocked} onChange={(e) => setFormData({ ...formData, isBlocked: e.target.checked })} className="w-4 h-4" />
                     <label htmlFor="isBlocked" className="text-sm text-slate-300">
                       Account blocked
                     </label>
