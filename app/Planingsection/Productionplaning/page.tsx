@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Calendar, Plus, Trash2, ListTodo, AlertCircle, RefreshCw, Factory, Clock, Target, TrendingUp } from "lucide-react";
 import api from "@/lib/api";
 
@@ -122,8 +122,10 @@ export default function ProductionPlanning() {
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [formData, setFormData] = useState<FormData>(DEFAULT_FORM);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [filters, setFilters] = useState({ date: "", status: "all" });
 
   // ── Data Fetching ──────────────────────────────────────────────────────────
 
@@ -131,7 +133,9 @@ export default function ProductionPlanning() {
     try {
       setLoading(true);
       const response = await api.get("/api/v1/production-plans");
-      setPlans(response.data.data);
+      const payload = response?.data;
+      const list = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.data?.data) ? payload.data.data : [];
+      setPlans(list);
       setError("");
     } catch {
       setError("Failed to load production plans. Please try again.");
@@ -155,7 +159,16 @@ export default function ProductionPlanning() {
 
   const totalTarget = plans.reduce((sum, p) => sum + p.target_qty, 0);
   const totalHours = plans.reduce((sum, p) => sum + p.planned_hours, 0);
-  const activePlans = plans.filter((p) => p.status?.toLowerCase() === "active").length;
+  const activePlans = plans.filter((p) => ["active", "running", "pending", "in progress"].includes((p.status || "").toLowerCase())).length;
+  const completedPlans = plans.filter((p) => (p.status || "").toLowerCase() === "completed").length;
+
+  const filteredPlans = useMemo(() => {
+    return plans.filter((plan) => {
+      const matchesDate = filters.date ? plan.date === filters.date : true;
+      const matchesStatus = filters.status === "all" ? true : (plan.status || "").toLowerCase() === filters.status.toLowerCase();
+      return matchesDate && matchesStatus;
+    });
+  }, [plans, filters]);
 
   // ── Capacity Calculation ───────────────────────────────────────────────────
 
@@ -196,13 +209,42 @@ export default function ProductionPlanning() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const trimmedProductCode = formData.product_code.trim();
+    const targetQty = Number(formData.target_qty);
+    const plannedHours = Number(formData.planned_hours);
+    const duplicatePlan = plans.some((plan) => plan.date === formData.date && plan.line_id === formData.line_id);
+
+    if (!formData.date || !formData.line_id || !trimmedProductCode) {
+      setFormError("Please fill in the date, line, and product code before saving.");
+      return;
+    }
+
+    if (!Number.isFinite(targetQty) || targetQty <= 0) {
+      setFormError("Target quantity must be greater than zero.");
+      return;
+    }
+
+    if (!Number.isFinite(plannedHours) || plannedHours <= 0 || plannedHours > 24) {
+      setFormError("Planned hours must be between 1 and 24.");
+      return;
+    }
+
+    if (duplicatePlan) {
+      setFormError("A plan already exists for this date and line. Please choose a different date or line.");
+      return;
+    }
+
     setSubmitting(true);
+    setFormError(null);
 
     try {
       await api.post("api/v1/production-plans", {
         ...formData,
-        target_qty: Number(formData.target_qty),
-        planned_hours: Number(formData.planned_hours),
+        product_code: trimmedProductCode,
+        target_qty: targetQty,
+        planned_hours: plannedHours,
+        status: "Pending",
       });
 
       setFormData((prev) => ({
@@ -213,7 +255,7 @@ export default function ProductionPlanning() {
       setCapacityMessage(null);
       await fetchPlans();
     } catch {
-      alert("Failed to save production plan. Please try again.");
+      setFormError("Failed to save production plan. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -263,7 +305,7 @@ export default function ProductionPlanning() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard icon={ListTodo} label="Total Plans" value={plans.length} sub="this period" color="bg-blue-500" />
           <MetricCard icon={TrendingUp} label="Active Plans" value={activePlans} sub="in progress" color="bg-violet-500" />
-          <MetricCard icon={Target} label="Total Target" value={totalTarget.toLocaleString()} sub="units planned" color="bg-emerald-500" />
+          <MetricCard icon={Target} label="Completed" value={completedPlans} sub="finished plans" color="bg-emerald-500" />
           <MetricCard icon={Clock} label="Total Hours" value={`${totalHours} h`} sub="allocated" color="bg-amber-500" />
         </div>
 
@@ -362,6 +404,13 @@ export default function ProductionPlanning() {
                 </div>
               )}
 
+              {formError && (
+                <div className="text-xs px-3 py-2.5 rounded-lg flex items-start gap-2 bg-red-50 text-red-600 border border-red-100">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <span>{formError}</span>
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={submitting}
@@ -390,8 +439,25 @@ export default function ProductionPlanning() {
                 <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Current Plans</h2>
               </div>
               <span className="text-xs text-gray-400 font-medium">
-                {plans.length} record{plans.length !== 1 ? "s" : ""}
+                {filteredPlans.length} of {plans.length} record{plans.length !== 1 ? "s" : ""}
               </span>
+            </div>
+
+            <div className="px-6 py-4 border-b border-gray-100 flex flex-col gap-3 md:flex-row md:items-end md:justify-between bg-gray-50/60">
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Filter by date</label>
+                <input type="date" className={`${inputCls} min-w-45 bg-white`} value={filters.date} onChange={(e) => setFilters((prev) => ({ ...prev, date: e.target.value }))} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Status</label>
+                <select className={`${inputCls} min-w-40 bg-white`} value={filters.status} onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}>
+                  <option value="all">All statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="running">Running</option>
+                  <option value="completed">Completed</option>
+                  <option value="active">Active</option>
+                </select>
+              </div>
             </div>
 
             {loading ? (
@@ -417,10 +483,10 @@ export default function ProductionPlanning() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {plans.length === 0 ? (
+                    {filteredPlans.length === 0 ? (
                       <EmptyState />
                     ) : (
-                      plans.map((plan) => (
+                      filteredPlans.map((plan) => (
                         <tr key={plan._id} className="hover:bg-slate-50/70 transition-colors group">
                           <td className="px-4 py-3 text-gray-700 font-medium whitespace-nowrap">{plan.date}</td>
                           <td className="px-4 py-3">

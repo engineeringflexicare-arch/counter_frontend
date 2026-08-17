@@ -36,41 +36,73 @@ export default function LoginPage() {
         password: password,
       });
 
-      const { token, role, Role, name, Firstname, user } = response.data;
+      const { token, role, user } = response.data;
 
-      const finalRole = role || Role || (user && user.Role) || "User";
-      const finalName = name || Firstname || (user && user.Firstname) || "Unknown User";
-      const finalEmail = (user && user.email) || "";
+      // ✅ Role එක backend එකෙන් කොහොම ආවත් (Admin, ADMIN, admin)
+      // ඒක simple letters වලට හරවා ගන්නවා (toLowerCase)
+      const rawRole = role || user?.role || "";
+      const finalRole = rawRole.toLowerCase();
+
+      const finalName = (user?.FirstName ?? user?.firstName ?? user?.name ?? `${user?.FirstName ?? ""} ${user?.LastName ?? ""}`.trim()) || "Unknown User";
+
+      const finalEmail = user?.email ?? "";
 
       localStorage.setItem("token", token);
       localStorage.setItem("userRole", finalRole);
       localStorage.setItem("userName", finalName);
+      // Save department for role-based redirects
+      const dept = (user?.department || "").toString().toLowerCase();
+      if (dept) localStorage.setItem("userDepartment", dept);
+
       // ✅ email එකත් save කරනවා - forgot-password page එකේ auto-fill වෙන්න
       if (finalEmail) {
         localStorage.setItem("userEmail", finalEmail);
       }
 
-      // Set cookies for Next.js middleware
-      document.cookie = `token=${token}; path=/; max-age=28800; samesite=strict`;
-      document.cookie = `userRole=${finalRole}; path=/; max-age=28800; samesite=strict`;
+      // Set cookies for Next.js middleware and proxy
+      document.cookie = `token=${token}; path=/; max-age=28800; SameSite=Strict`;
+      document.cookie = `user=${encodeURIComponent(
+        JSON.stringify({
+          role: finalRole,
+          name: finalName,
+          email: finalEmail,
+        }),
+      )}; path=/; max-age=28800; SameSite=Strict`;
 
       setTimeout(() => {
-        switch (finalRole) {
-          case "Admin":
-            router.push("/Admin");
-            break;
-          case "Superuser":
-            router.push("/Superuser");
-            break;
-          case "Supervisor":
-            router.push("/Supervisor");
-            break;
-          case "Planner":
-            router.push("/Planingsection");
-            break;
-          default:
-            router.push("/dashboard");
+        // Redirect based on normalized role and department
+        if (finalRole === "admin") {
+          router.push("/Admin");
+          return;
         }
+
+        if (finalRole === "superuser") {
+          router.push("/Superuser");
+          return;
+        }
+
+        if (finalRole === "supervisor") {
+          // department saved above as `dept`
+          if (dept.includes("assembly")) {
+            router.push("/assembly-supervisor");
+            return;
+          }
+          if (dept.includes("production")) {
+            router.push("/production-supervisor");
+            return;
+          }
+          // fallback to generic Supervisor area
+          router.push("/Supervisor");
+          return;
+        }
+
+        if (finalRole === "planner") {
+          router.push("/Planingsection");
+          return;
+        }
+
+        // default
+        router.push("/dashboard");
       }, 1000);
     } catch (err: unknown) {
       setLoading(false);

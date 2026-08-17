@@ -292,7 +292,7 @@ export default function SuperuserDashboard() {
                     <PieChart>
                       <Pie data={floorPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={3}>
                         {floorPieData.map((entry, i) => (
-                          <Cell key={entry.name} fill={floorPalette[i % floorPalette.length]} />
+                          <Cell key={`${entry.name}-${i}`} fill={floorPalette[i % floorPalette.length]} />
                         ))}
                       </Pie>
                       <Tooltip formatter={(value) => Number(value).toLocaleString()} contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} />
