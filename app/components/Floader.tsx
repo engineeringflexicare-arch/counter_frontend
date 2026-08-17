@@ -51,6 +51,7 @@ export default function FLoader() {
             alt="GP Logo"
             width={80}
             height={80}
+            unoptimized
             className="object-contain"
             style={{ animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite", width: "auto", height: "auto" }}
           />

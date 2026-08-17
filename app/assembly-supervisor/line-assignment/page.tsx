@@ -52,7 +52,7 @@ const EMPTY_FORM: FormState = {
   supervisor: "",
   shiftStartTime: "",
   shiftEndTime: "",
-  floor: "Assembly Floor",
+  floor: "Assembly Floor", // Default අගය
   plannedDate: "",
 };
 
@@ -78,7 +78,6 @@ const shiftColors: Record<string, string> = {
 export default function ManageLinesPage() {
   const router = useRouter();
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
-  // ✅ Use /api/lines/ instead of /api/esp32/lines
   const LINES_API = `${API_BASE_URL}/api/lines`;
 
   const [lines, setLines] = useState<LineRecord[]>([]);
@@ -101,14 +100,12 @@ export default function ManageLinesPage() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  // ✅ FIX: Move data fetching directly into useEffect to avoid setState-in-effect warning
   useEffect(() => {
-    let isMounted = true; // Prevent state updates if component unmounts
+    let isMounted = true;
 
     const fetchLines = async () => {
       try {
         setLoading(true);
-        // ✅ Use /api/lines/
         const res = await api.get(LINES_API, getHeaders());
         if (isMounted && res.data?.success && res.data?.data) {
           const arr = Object.values(res.data.data) as LineRecord[];
@@ -135,7 +132,6 @@ export default function ManageLinesPage() {
 
   const fetchMachines = async () => {
     try {
-      // ✅ Use /api/esp32/machines/free to get available machines
       const res = await api.get(`${API_BASE_URL}/api/esp32/machines/free`, getHeaders());
       if (res.data?.success && Array.isArray(res.data.data)) {
         setMachines(res.data.data);
@@ -204,16 +200,14 @@ export default function ManageLinesPage() {
       supervisor: form.supervisor.trim(),
       shiftStartTime: form.shiftStartTime,
       shiftEndTime: form.shiftEndTime,
-      floor: form.floor.trim(),
+      floor: form.floor, // trimmed earlier, now directly mapped
       plannedDate: form.plannedDate,
     };
     try {
       if (modalMode === "assign") {
-        // ✅ Use /api/lines/assign
         await api.post(`${LINES_API}/assign`, payload, getHeaders());
         showToast("success", `${payload.lineId} assigned to ${payload.machineId}.`);
       } else {
-        // ✅ Use /api/lines/update
         await api.put(`${LINES_API}/update`, payload, getHeaders());
         showToast("success", `${payload.lineId} updated.`);
       }
@@ -235,7 +229,6 @@ export default function ManageLinesPage() {
     if (!removeTarget) return;
     setRemoving(true);
     try {
-      // ✅ Use /api/lines/remove
       await api.delete(`${LINES_API}/remove`, {
         data: { lineId: removeTarget.lineId },
         ...getHeaders(),
@@ -276,7 +269,7 @@ export default function ManageLinesPage() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push("/Supervisor/assembly-floor")}
+              onClick={() => router.push("/assembly-supervisor")}
               className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
@@ -489,14 +482,15 @@ export default function ManageLinesPage() {
                 />
               </Field>
 
+              {/* 🟢 Select dropdown for Floor */}
               <Field label="Floor">
-                <input
-                  type="text"
+                <select
                   value={form.floor}
                   onChange={(e) => handleChange("floor", e.target.value)}
-                  placeholder="Assembly Floor"
                   className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100"
-                />
+                >
+                  <option value="Assembly Floor">Assembly Floor</option>
+                </select>
               </Field>
 
               <Field label="Daily Target">

@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Factory, LogOut, Menu, X, ClipboardList, Settings } from "lucide-react";
+import { LayoutDashboard, Factory, LogOut, Menu, X, Settings } from "lucide-react";
 import NotificationDropdown from "../components/NotificationDropdown";
 import { RiMenuFold2Line } from "react-icons/ri";
 
@@ -58,10 +58,9 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
   }, []);
 
   const menuItems = [
-    { name: "Dashboard", href: "/supervisor", icon: LayoutDashboard },
+    { name: "Dashboard", href: "/assembly-supervisor", icon: LayoutDashboard },
     { name: "Line Assignment", href: "/assembly-supervisor/line-assignment", icon: Factory },
-    { name: "Lines Update", href: "/assembly-supervisor/line_update", icon: ClipboardList },
-    { name: "ManageLinesPanel", href: "/assembly-supervisor/ManageLinesPage", icon: Settings },
+    { name: "Lines Update", href: "/assembly-supervisor/line_update", icon: Settings },
   ];
 
   const handleLogout = () => {
@@ -94,7 +93,7 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
         {/* Logo Header */}
         <div className="p-3 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Logo" width={60} height={60} className="rounded-full border-slate-50 p-1 border-2" />
+            <Image src="/logo.png" alt="Logo" width={60} height={60} unoptimized priority className="rounded-full border-slate-50 p-1 border-2" />
 
             {!collapsed && (
               <div>

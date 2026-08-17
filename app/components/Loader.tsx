@@ -52,6 +52,8 @@ export default function Loader() {
             alt="GP Logo"
             width={80}
             height={80}
+            unoptimized
+            priority
             className="object-contain"
             // මෙතන තිබුණු pulse animation එක ඉවත් කර spin animation එක ලබා දී ඇත
             style={{ animation: `spin ${logoSpeed} linear infinite`, width: "auto", height: "auto" }}

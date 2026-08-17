@@ -3,11 +3,14 @@
 import { useEffect, useState, useCallback } from "react";
 import api from "../../lib/api";
 import { useRouter } from "next/navigation";
-import { Factory, Layers, Activity, Package, Target, Gauge, BarChart3, PieChart as PieIcon, TrendingUp, LineChart as LineIcon } from "lucide-react";
+import { Factory, Layers, Activity, Package, Target, Gauge, BarChart3, PieChart as PieIcon, TrendingUp, LineChart as LineIcon, Cpu } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, AreaChart, Area, LineChart, Line as RLine } from "recharts";
 import LineCard from "../components/Linecard";
-import { MachineHealth } from "../components/MachineHealthBadge"; // නිවැරදිව Interface එක import කර ඇත
+import { MachineHealth } from "../components/MachineHealthBadge";
+import MachineHealthBadge from "../components/MachineHealthBadge";
 import Loader from "../components/Loader";
+
+// ── Types ────────────────────────────────────────────────────────────────────
 
 interface Line {
   lineId: string;
@@ -18,11 +21,26 @@ interface Line {
   dailyTarget?: number;
   floor?: string;
   health?: MachineHealth;
-  shiftStartTime?: string; // e.g. "08:30"  — ADDED
-  shiftEndTime?: string; // e.g. "20:30"  — ADDED
+  shiftStartTime?: string;
+  shiftEndTime?: string;
 }
 
-// Helper: parse a bucket label like "08:00-09:00" into its start minute-of-day
+interface InjectionMachineData {
+  id: string;
+  injectionMachineNumber?: string;
+  mouldNumber?: string;
+  cavities?: number;
+  machineId?: string;
+  productCode?: string;
+  targetCount?: number;
+  dailyTarget?: number;
+  totalProductCount?: number;
+  health?: MachineHealth;
+  shiftStartTime?: string;
+  shiftEndTime?: string;
+}
+
+// Helper: parse a bucket label like "08:00-09:00" into start minute-of-day
 const parseBucketStartMinutes = (label: string): number | null => {
   if (!label || !label.includes("-")) return null;
   const [startStr] = label.split("-");
@@ -33,49 +51,66 @@ const parseBucketStartMinutes = (label: string): number | null => {
 
 export default function SuperuserDashboard() {
   const [lines, setLines] = useState<Line[]>([]);
+  const [injectionMachines, setInjectionMachines] = useState<InjectionMachineData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  // අද දිනයට සියලුම Line වල පැය අනුව output එකතුව (hourly + cumulative)
   const [hourlyTrend, setHourlyTrend] = useState<{ hour: string; output: number; cumulative: number }[]>([]);
 
   const router = useRouter();
   const today = new Date().toISOString().split("T")[0];
 
-  const fetchAllLines = useCallback(async () => {
+  // ── Fetch All Data (Assembly + Manufacturing) ──────────────────────────────
+  const fetchAllData = useCallback(async () => {
     try {
       setError("");
 
-      // "/api/esp32/lines" කියන endpoint එක backend එකේ නැහැ (404).
-      // Lines endpoint එක තියෙන්නේ LineRouter එකේ "/api/lines" කියලා, array එකක් විදිහට.
-      const res = await api.get(`/api/lines`);
-      const data: Line[] = res.data?.data || [];
+      // 1. Fetch Assembly Lines & Machine Health Status
+      const [linesRes, healthRes, injectionRes] = await Promise.all([
+        api.get(`/api/lines`).catch(() => ({ data: { data: [] } })),
+        api.get(`/api/esp32/machine-status`).catch(() => ({ data: { data: [] } })),
+        api.get(`/api/injection-machines/`).catch(() => ({ data: { data: [] } })),
+      ]);
 
-      // Fetch Machine Health + Live Count Status
-      const healthRes = await api.get(`/api/esp32/machine-status`).catch(() => null);
-      const healthData = healthRes?.data?.data || [];
+      const linesData: Line[] = linesRes.data?.data || [];
+      const healthData = healthRes.data?.data || [];
 
-      if (Array.isArray(data)) {
-        const linesArray: Line[] = data.map((line) => {
+      // Process Assembly Lines
+      if (Array.isArray(linesData)) {
+        const formattedLines: Line[] = linesData.map((line) => {
           const mStatus = healthData.find((h: MachineHealth & { liveCount?: number }) => h.machineId === line.machineId);
-
           return {
             ...line,
             health: mStatus,
-            // ✅ FIX: merge live Firebase count into totalProductCount.
-            // Previously this was never populated from anywhere, so
-            // "Total Products", the Output bars, and each LineCard's
-            // current progress always showed 0.
             totalProductCount: mStatus?.liveCount ?? line.totalProductCount ?? 0,
           };
         });
+        setLines(formattedLines);
+      }
 
-        setLines(linesArray);
+      // Process Injection Machines
+      const rawInjData = injectionRes.data?.data;
+      const injArray: InjectionMachineData[] = Array.isArray(rawInjData) ? rawInjData : rawInjData ? Object.values(rawInjData) : [];
+
+      if (injArray.length > 0) {
+        const formattedInj: InjectionMachineData[] = injArray
+          .filter((val) => Boolean(val.injectionMachineNumber))
+          .map((val) => {
+            const mStatus = healthData.find((h: MachineHealth & { liveCount?: number }) => h.machineId === val.machineId);
+            const cavity = val.cavities || 1;
+            return {
+              ...val,
+              id: val.injectionMachineNumber as string,
+              health: mStatus,
+              totalProductCount: (mStatus?.liveCount || 0) * cavity,
+            };
+          });
+        setInjectionMachines(formattedInj.sort((a, b) => a.id.localeCompare(b.id)));
       } else {
-        setLines([]);
+        setInjectionMachines([]);
       }
     } catch (err) {
-      console.error("Error fetching lines:", err);
-      setError("Failed to load production lines");
+      console.error("Error fetching dashboard data:", err);
+      setError("Failed to load production data");
     } finally {
       setLoading(false);
     }
@@ -83,37 +118,30 @@ export default function SuperuserDashboard() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchAllLines();
-
-    const interval = setInterval(() => {
-      fetchAllLines();
-    }, 5000);
-
+    fetchAllData();
+    const interval = setInterval(fetchAllData, 5000);
     return () => clearInterval(interval);
-  }, [fetchAllLines]);
+  }, [fetchAllData]);
 
-  // අද දිනයට සියලුම Line වල පැය අනුව output එකතු කර cumulative trend එක ගණනය කිරීම
-  // FIX: now sends each line's own shiftStartTime/shiftEndTime to the API,
-  // and merges multi-machine buckets by actual start-minute-of-day instead
-  // of raw label string, so lines on different shifts still align correctly.
+  // ── Combined Hourly Production Trend ───────────────────────────────────────
   useEffect(() => {
-    const eligibleLines = lines.filter((l) => Boolean(l.machineId));
+    const allDevices = [
+      ...lines.filter((l) => Boolean(l.machineId)).map((l) => ({ machineId: l.machineId!, start: l.shiftStartTime || "08:30", end: l.shiftEndTime || "20:30" })),
+      ...injectionMachines.filter((m) => Boolean(m.machineId)).map((m) => ({ machineId: m.machineId!, start: m.shiftStartTime || "08:30", end: m.shiftEndTime || "20:30" })),
+    ];
 
     let isMounted = true;
     const fetchHourlyTrend = async () => {
-      if (eligibleLines.length === 0) {
+      if (allDevices.length === 0) {
         if (isMounted) setHourlyTrend([]);
         return;
       }
 
       try {
         const responses = await Promise.all(
-          eligibleLines.map(async (line) => {
+          allDevices.map(async (dev) => {
             try {
-              const start = line.shiftStartTime || "08:30";
-              const end = line.shiftEndTime || "20:30";
-
-              const res = await api.get(`/api/esp32/hourly-production/${line.machineId}` + `?date=${today}&shiftStartTime=${encodeURIComponent(start)}&shiftEndTime=${encodeURIComponent(end)}`);
+              const res = await api.get(`/api/esp32/hourly-production/${dev.machineId}?date=${today}&shiftStartTime=${encodeURIComponent(dev.start)}&shiftEndTime=${encodeURIComponent(dev.end)}`);
               return res.data?.success && Array.isArray(res.data.hourlyData) ? (res.data.hourlyData as { hour: string; output: number }[]) : [];
             } catch {
               return [];
@@ -121,8 +149,6 @@ export default function SuperuserDashboard() {
           }),
         );
 
-        // පැය අනුව සියලුම machines වල output එකතු කිරීම
-        // (merged by actual start-minute-of-day, not the raw label string)
         const byStartMin: Record<number, { label: string; output: number }> = {};
 
         responses.flat().forEach((item) => {
@@ -157,7 +183,7 @@ export default function SuperuserDashboard() {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [lines, today]);
+  }, [lines, injectionMachines, today]);
 
   if (loading) {
     return (
@@ -177,44 +203,67 @@ export default function SuperuserDashboard() {
     );
   }
 
-  // සමස්ත (aggregate) සංඛ්‍යාලේඛන
-  const totalLines = lines.length;
-  const activeMachines = lines.filter((l) => l.machineId).length;
-  const totalProducts = lines.reduce((sum, l) => sum + (l.totalProductCount || 0), 0);
-  const totalTarget = lines.reduce((sum, l) => sum + (l.dailyTarget || l.targetCount || 0), 0);
+  // ── Overall Aggregated Statistics ──────────────────────────────────────────
+  const totalAssemblyLines = lines.length;
+  const totalInjMachines = injectionMachines.length;
+  const totalUnits = totalAssemblyLines + totalInjMachines;
+
+  const activeAssemblyMachines = lines.filter((l) => l.machineId).length;
+  const activeInjMachines = injectionMachines.filter((m) => m.machineId).length;
+  const activeMachinesCount = activeAssemblyMachines + activeInjMachines;
+
+  const totalAssemblyProducts = lines.reduce((sum, l) => sum + (l.totalProductCount || 0), 0);
+  const totalInjProducts = injectionMachines.reduce((sum, m) => sum + (m.totalProductCount || 0), 0);
+  const totalProducts = totalAssemblyProducts + totalInjProducts;
+
+  const totalAssemblyTarget = lines.reduce((sum, l) => sum + (l.dailyTarget || l.targetCount || 0), 0);
+  const totalInjTarget = injectionMachines.reduce((sum, m) => sum + (m.dailyTarget || m.targetCount || 0), 0);
+  const totalTarget = totalAssemblyTarget + totalInjTarget;
+
   const overallProgress = totalTarget > 0 ? ((totalProducts / totalTarget) * 100).toFixed(1) : "0.0";
 
   const stats = [
-    { label: "Total Lines", value: totalLines, icon: Factory, accent: "bg-blue-50 text-blue-600" },
-    { label: "Active Machines", value: activeMachines, icon: Activity, accent: "bg-emerald-50 text-emerald-600" },
+    { label: "Total Units/Lines", value: totalUnits, icon: Factory, accent: "bg-blue-50 text-blue-600" },
+    { label: "Active Devices", value: activeMachinesCount, icon: Activity, accent: "bg-emerald-50 text-emerald-600" },
     { label: "Total Products", value: totalProducts.toLocaleString(), icon: Package, accent: "bg-indigo-50 text-indigo-600" },
     { label: "Total Target", value: totalTarget.toLocaleString(), icon: Target, accent: "bg-amber-50 text-amber-600" },
     { label: "Overall Progress", value: `${overallProgress}%`, icon: Gauge, accent: "bg-purple-50 text-purple-600" },
   ];
 
-  // Floor අනුව Lines කාණ්ඩ කිරීම
+  // Assembly Floor Groups
   const floorGroups = lines.reduce<Record<string, Line[]>>((acc, line) => {
-    const floor = line.floor || "Unassigned";
+    const floor = line.floor || "Unassigned Floor";
     (acc[floor] ||= []).push(line);
     return acc;
   }, {});
   const floorNames = Object.keys(floorGroups).sort();
 
-  // Bar Chart: එක් එක් Line එකේ Output එදිරිව Target
-  const lineChartData = lines.map((l) => ({
-    name: l.lineId.replaceAll("_", " "),
-    output: l.totalProductCount || 0,
-    target: l.dailyTarget || l.targetCount || 0,
-  }));
+  // Combined Bar Chart Data (Lines + Injection Machines)
+  const lineChartData = [
+    ...lines.map((l) => ({
+      name: l.lineId.replaceAll("_", " "),
+      output: l.totalProductCount || 0,
+      target: l.dailyTarget || l.targetCount || 0,
+    })),
+    ...injectionMachines.map((m) => ({
+      name: `M/C ${m.id}`,
+      output: m.totalProductCount || 0,
+      target: m.dailyTarget || m.targetCount || 0,
+    })),
+  ];
 
-  // Donut Chart: Floor අනුව Products බෙදීයාම
+  // Donut Chart: Products by Section/Floor
   const floorPalette = ["#3b82f6", "#10b981", "#6366f1", "#f59e0b", "#a855f7", "#ec4899", "#14b8a6"];
-  const floorPieData = floorNames
-    .map((floor) => ({
+  const floorPieData = [
+    ...floorNames.map((floor) => ({
       name: floor.replaceAll("_", " "),
       value: floorGroups[floor].reduce((sum, l) => sum + (l.totalProductCount || 0), 0),
-    }))
-    .filter((d) => d.value > 0);
+    })),
+    {
+      name: "Manufacturing (Inj)",
+      value: totalInjProducts,
+    },
+  ].filter((d) => d.value > 0);
 
   return (
     <div className="min-h-screen bg-neutral-50 p-6">
@@ -226,8 +275,8 @@ export default function SuperuserDashboard() {
               <Factory className="h-7 w-7 text-white" />
             </div>
             <div>
-              <h1 className="text-sm font-extrabold text-white">Production Control Center</h1>
-              <p className="text-slate-300 text-xs mt-0.5">Live overview across all floors and lines</p>
+              <h1 className="text-base font-extrabold text-white">Production Control Center</h1>
+              <p className="text-slate-300 text-xs mt-0.5">Live overview across Assembly & Manufacturing Floors</p>
             </div>
           </div>
           <div className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2">
@@ -254,14 +303,14 @@ export default function SuperuserDashboard() {
           ))}
         </div>
 
-        {/* Charts */}
-        {lines.length > 0 && (
+        {/* Charts Section */}
+        {totalUnits > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             {/* Output vs Target Bar Chart */}
             <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center gap-2 mb-6">
                 <BarChart3 className="h-5 w-5 text-blue-600" />
-                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Output vs Target by Line</h2>
+                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Output vs Target by Unit</h2>
               </div>
               <div className="h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -278,11 +327,11 @@ export default function SuperuserDashboard() {
               </div>
             </div>
 
-            {/* Products by Floor Donut Chart */}
+            {/* Products by Floor / Department Donut Chart */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center gap-2 mb-6">
                 <PieIcon className="h-5 w-5 text-indigo-600" />
-                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Products by Floor</h2>
+                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Products Breakdown</h2>
               </div>
               <div className="h-72 w-full">
                 {floorPieData.length === 0 ? (
@@ -305,10 +354,10 @@ export default function SuperuserDashboard() {
           </div>
         )}
 
-        {/* Cumulative & Hourly Trend Charts (අද දිනය) */}
-        {lines.length > 0 && (
+        {/* Hourly Trend Charts */}
+        {totalUnits > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Cumulative Production Area Chart */}
+            {/* Cumulative Area Chart */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center gap-2 mb-6">
                 <TrendingUp className="h-5 w-5 text-emerald-600" />
@@ -362,38 +411,85 @@ export default function SuperuserDashboard() {
           </div>
         )}
 
-        {/* No Data */}
-        {lines.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
-            <p className="text-gray-500 text-lg">No Production Lines Available</p>
-          </div>
-        ) : (
-          /* Floor අනුව කාණ්ඩ කළ Lines */
-          <div className="flex flex-col gap-8">
-            {floorNames.map((floor) => (
-              <section key={floor}>
-                <div className="flex items-center gap-2 mb-4">
-                  <Layers className="h-5 w-5 text-slate-500" />
-                  <h2 className="text-lg font-bold text-slate-700">{floor.replaceAll("_", " ")}</h2>
-                  <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-600">{floorGroups[floor].length}</span>
-                </div>
-                <div className="flex flex-wrap gap-4">
-                  {floorGroups[floor].map((line) => (
-                    <button key={line.lineId} onClick={() => router.push(`/Superuser/${line.lineId}`)} className="text-left cursor-pointer transition-transform hover:scale-105 focus:outline-none">
-                      <LineCard
-                        line={line.lineId}
-                        product={line.productCode || "N/A"}
-                        machine={line.machineId || "No Machine"}
-                        target={line.targetCount || line.dailyTarget || 0}
-                        current={line.totalProductCount || 0}
-                        health={line.health}
-                      />
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
+        {/* ── Floor Cards Display ────────────────────────────────────────── */}
+
+        {/* 1. Assembly Floor Sections */}
+        {floorNames.map((floor) => (
+          <section key={floor} className="mb-8">
+            <div className="flex items-center gap-2 mb-4">
+              <Layers className="h-5 w-5 text-slate-500" />
+              <h2 className="text-lg font-bold text-slate-700">{floor.replaceAll("_", " ")}</h2>
+              <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-600">{floorGroups[floor].length}</span>
+            </div>
+            <div className="flex flex-wrap gap-4">
+              {floorGroups[floor].map((line) => (
+                <button key={line.lineId} onClick={() => router.push(`/Superuser/${line.lineId}`)} className="text-left cursor-pointer transition-transform hover:scale-[1.02] focus:outline-none">
+                  <LineCard
+                    line={line.lineId}
+                    product={line.productCode || "N/A"}
+                    machine={line.machineId || "No Machine"}
+                    target={line.targetCount || line.dailyTarget || 0}
+                    current={line.totalProductCount || 0}
+                    health={line.health}
+                  />
+                </button>
+              ))}
+            </div>
+          </section>
+        ))}
+
+        {/* 2. Manufacturing Floor (Injection Molding) Section */}
+        {injectionMachines.length > 0 && (
+          <section className="mb-8">
+            <div className="flex items-center gap-2 mb-4">
+              <Cpu className="h-5 w-5 text-teal-600" />
+              <h2 className="text-lg font-bold text-slate-700">Manufacturing Floor (Injection Molding)</h2>
+              <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-800">{injectionMachines.length}</span>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {injectionMachines.map((machine) => {
+                const target = machine.dailyTarget || machine.targetCount || 0;
+                const current = machine.totalProductCount || 0;
+                const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+
+                return (
+                  <button
+                    key={machine.id}
+                    onClick={() => router.push(`/Superuser/${machine.id}`)}
+                    className="text-left cursor-pointer transition-transform hover:scale-[1.02] focus:outline-none w-full"
+                  >
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-teal-300 hover:shadow-md transition-all">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="font-mono text-base font-bold text-slate-800">Machine {machine.id}</span>
+                        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600">{pct}%</span>
+                      </div>
+                      <div className="mb-3">
+                        <MachineHealthBadge health={machine.health} />
+                      </div>
+                      <div className="text-xs text-slate-500 space-y-1 mb-3">
+                        <p>
+                          Product: <span className="font-medium text-slate-700">{machine.productCode || "—"}</span>
+                        </p>
+                        <p>
+                          Mould: <span className="font-medium text-slate-700">{machine.mouldNumber || "—"}</span>
+                        </p>
+                        <p>
+                          Cavities: <span className="font-medium text-slate-700">{machine.cavities || 1}</span>
+                        </p>
+                      </div>
+                      <div className="flex justify-between text-xs font-semibold text-slate-700 mb-1">
+                        <span>Output: {current.toLocaleString()}</span>
+                        <span>Target: {target.toLocaleString()}</span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-full bg-teal-500 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         )}
       </div>
     </div>
