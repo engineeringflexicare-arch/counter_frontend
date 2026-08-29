@@ -67,10 +67,15 @@ export default function ProductionionSectionLayout({ children }: { children: Rea
     },
   ];
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("userName");
-    localStorage.removeItem("userDepartment");
+  const handleLogout = async () => {
+    try {
+      const api = (await import("@/lib/api")).default;
+      await api.post("/api/users/logout");
+    } catch (e) {
+      /* server-side cookie clear may fail, proceed anyway */
+    }
+    document.cookie = "user=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+    localStorage.clear();
     window.location.href = "/";
   };
 
@@ -98,7 +103,7 @@ export default function ProductionionSectionLayout({ children }: { children: Rea
         {/* Logo */}
         <div className="p-3 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Image src="/logo.svg" alt="Logo" width={60} height={60} className="rounded-full border-slate-50 p-1 border-2" />
+            <Image src="/logo.png" alt="Logo" width={60} height={60} unoptimized priority className="rounded-full border-slate-50 p-1 border-2" />
 
             {!collapsed && (
               <div>
@@ -217,3 +222,4 @@ export default function ProductionionSectionLayout({ children }: { children: Rea
     </div>
   );
 }
+

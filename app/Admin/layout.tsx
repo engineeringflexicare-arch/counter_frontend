@@ -17,11 +17,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [collapsed, setCollapsed] = useState(false);
   const [currentTime, setCurrentTime] = useState("");
 
-  // ✅ No useEffect needed — read localStorage at init time (client only, lazy initializer)
-  const [userImage] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem("userImage");
-  });
+  const [userImage, setUserImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setUserImage(localStorage.getItem("userImage"));
+  }, []);
 
   // ✅ useRef instead of useState for mounted flag — no re-render, no ESLint error
   const mountedRef = useRef(false);
@@ -62,8 +62,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: "Machines Management", href: "/Admin/Machinemanagementpage", icon: Bell },
   ];
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
+  const handleLogout = async () => {
+    try {
+      const api = (await import("@/lib/api")).default;
+      await api.post("/api/users/logout");
+    } catch (e) {
+      /* server-side cookie clear may fail, proceed anyway */
+    }
+    document.cookie = "user=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+    localStorage.clear();
     window.location.href = "/";
   };
 
@@ -158,3 +165,4 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     </SidebarContext.Provider>
   );
 }
+

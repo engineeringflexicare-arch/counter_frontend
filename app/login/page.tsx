@@ -34,7 +34,7 @@ export default function LoginPage() {
       const response = await axios.post(`${API_BASE_URL}/api/users/login`, {
         EmployeeNumber: employeeNumber,
         password: password,
-      });
+      }, { withCredentials: true });
 
       const { token, role, user } = response.data;
 
@@ -47,7 +47,6 @@ export default function LoginPage() {
 
       const finalEmail = user?.email ?? "";
 
-      localStorage.setItem("token", token);
       localStorage.setItem("userRole", finalRole);
       localStorage.setItem("userName", finalName);
       // Save department for role-based redirects
@@ -59,8 +58,7 @@ export default function LoginPage() {
         localStorage.setItem("userEmail", finalEmail);
       }
 
-      // Set cookies for Next.js middleware and proxy
-      document.cookie = `token=${token}; path=/; max-age=28800; SameSite=Strict`;
+      // Set user metadata cookie for Next.js middleware and proxy (Token is set via HttpOnly cookie by backend)
       document.cookie = `user=${encodeURIComponent(
         JSON.stringify({
           role: finalRole,
