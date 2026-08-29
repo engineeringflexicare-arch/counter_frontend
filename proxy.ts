@@ -118,9 +118,7 @@ export function proxy(request: NextRequest) {
 
 
 export const config = {
-
- matcher:[
-   "/((?!_next/static|_next/image|favicon.ico).*)",
- ]
-
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|sw\.js|manifest\.webmanifest|manifest|icon-192\.png|icon-512\.png|logo\.png|logo\.svg|default\.png|Background\.png|offline\.html|window\.svg|globe\.svg|file\.svg|vercel\.svg|icons8-user-default-96\.png).*)",
+  ],
 };

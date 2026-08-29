@@ -83,9 +83,15 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
     },
   ];
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("userName");
+  const handleLogout = async () => {
+    try {
+      const api = (await import("@/lib/api")).default;
+      await api.post("/api/users/logout");
+    } catch (e) {
+      /* server-side cookie clear may fail, proceed anyway */
+    }
+    document.cookie = "user=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+    localStorage.clear();
     window.location.href = "/";
   };
 
@@ -252,3 +258,4 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
     </div>
   );
 }
+

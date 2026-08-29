@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import api from "@/lib/api";
 import { useRouter } from "next/navigation";
-import { Activity, Cpu, Package, TrendingUp, RefreshCw, ChevronRight, Clock, Target, Gauge, Box, Search } from "lucide-react";
+import { Activity, Cpu, Package, TrendingUp, RefreshCw, ChevronRight, AlertCircle, Clock, Target, Gauge, Box } from "lucide-react";
 import MachineHealthBadge, { MachineHealth } from "../../components/MachineHealthBadge";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -26,7 +26,7 @@ interface ApiInjectionData {
 }
 
 interface InjectionMachineData extends ApiInjectionData {
-  id: string;
+  id: string; // Used for unique mapping (same as injectionMachineNumber)
   health?: MachineHealth;
 }
 
@@ -131,144 +131,101 @@ function MetaChip({ icon, label }: { icon: React.ReactNode; label: string }) {
 }
 
 // ── Summary bar ───────────────────────────────────────────────────────────────
-// 📅 දැන් selectedDate එකද ලබාගෙන, Day / Night Shift දත්ත වෙන වෙනම පෙන්වයි.
 
-function SummaryBar({ machines, selectedDate }: { machines: InjectionMachineData[]; selectedDate: string }) {
+function SummaryBar({ machines }: { machines: InjectionMachineData[] }) {
   const total = machines.length;
   const onTrack = machines.filter((m) => {
     const t = m.dailyTarget || m.targetCount || 0;
     return progressPct(m.totalProductCount || 0, t) >= 90;
   }).length;
-
-  // තෝරාගත් දිනයේ Day / Night Shift යන්ත්‍ර ගණන
-  const dayShiftMachines = machines.filter((m) => m.shift === "Day");
-  const nightShiftMachines = machines.filter((m) => m.shift === "Night");
-  const dayShiftCount = dayShiftMachines.length;
-  const nightShiftCount = nightShiftMachines.length;
-  const dayShiftOutput = dayShiftMachines.reduce((s, m) => s + (m.totalProductCount || 0), 0);
-  const nightShiftOutput = nightShiftMachines.reduce((s, m) => s + (m.totalProductCount || 0), 0);
-
+  const behind = machines.filter((m) => {
+    const t = m.dailyTarget || m.targetCount || 0;
+    const pct = progressPct(m.totalProductCount || 0, t);
+    return pct >= 60 && pct < 90;
+  }).length;
+  const atRisk = machines.filter((m) => {
+    const t = m.dailyTarget || m.targetCount || 0;
+    return progressPct(m.totalProductCount || 0, t) < 60;
+  }).length;
   const totalOutput = machines.reduce((s, m) => s + (m.totalProductCount || 0), 0);
   const totalTarget = machines.reduce((s, m) => s + (m.dailyTarget || m.targetCount || 0), 0);
   const overallProgress = totalTarget > 0 ? ((totalOutput / totalTarget) * 100).toFixed(1) : "0.0";
   const devicesAssigned = machines.filter((m) => Boolean(m.machineId)).length;
 
   return (
-    <div className="mb-6">
-      <p className="mb-2 text-[11px] font-medium text-slate-400">
-        Showing production data for <span className="font-semibold text-slate-600">{selectedDate}</span>
-      </p>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8">
-        {[
-          { label: "Active Machines", value: total, icon: <Activity className="h-4 w-4 text-teal-600" />, bg: "bg-teal-50" },
-          { label: "ESP32 Assigned", value: devicesAssigned, icon: <Cpu className="h-4 w-4 text-sky-600" />, bg: "bg-sky-50" },
-          { label: "Day Shift", value: `${dayShiftCount} · ${dayShiftOutput.toLocaleString()}`, icon: <Clock className="h-4 w-4 text-amber-500" />, bg: "bg-amber-50" },
-          { label: "Night Shift", value: `${nightShiftCount} · ${nightShiftOutput.toLocaleString()}`, icon: <Clock className="h-4 w-4 text-indigo-500" />, bg: "bg-indigo-50" },
-          { label: "On Track", value: onTrack, icon: <TrendingUp className="h-4 w-4 text-emerald-600" />, bg: "bg-emerald-50" },
-          { label: "Total Output", value: totalOutput.toLocaleString(), icon: <Package className="h-4 w-4 text-indigo-600" />, bg: "bg-indigo-50" },
-          { label: "Total Target", value: totalTarget.toLocaleString(), icon: <Target className="h-4 w-4 text-violet-600" />, bg: "bg-violet-50" },
-          { label: "Progress", value: `${overallProgress}%`, icon: <Gauge className="h-4 w-4 text-fuchsia-600" />, bg: "bg-fuchsia-50" },
-        ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2 mb-2">
-              <span className={`rounded-lg p-1.5 ${s.bg}`}>{s.icon}</span>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{s.label}</p>
-            </div>
-            <p className="font-mono text-2xl font-bold text-slate-800">{s.value}</p>
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 mb-6">
+      {[
+        { label: "Active Machines", value: total, icon: <Activity className="h-4 w-4 text-teal-600" />, bg: "bg-teal-50" },
+        { label: "ESP32 Assigned", value: devicesAssigned, icon: <Cpu className="h-4 w-4 text-sky-600" />, bg: "bg-sky-50" },
+        { label: "On Track", value: onTrack, icon: <TrendingUp className="h-4 w-4 text-emerald-600" />, bg: "bg-emerald-50" },
+        { label: "Behind", value: behind, icon: <Clock className="h-4 w-4 text-amber-500" />, bg: "bg-amber-50" },
+        { label: "At Risk", value: atRisk, icon: <AlertCircle className="h-4 w-4 text-red-500" />, bg: "bg-red-50" },
+        { label: "Total Output", value: totalOutput.toLocaleString(), icon: <Package className="h-4 w-4 text-indigo-600" />, bg: "bg-indigo-50" },
+        { label: "Total Target", value: totalTarget.toLocaleString(), icon: <Target className="h-4 w-4 text-violet-600" />, bg: "bg-violet-50" },
+        { label: "Overall Progress", value: `${overallProgress}%`, icon: <Gauge className="h-4 w-4 text-fuchsia-600" />, bg: "bg-fuchsia-50" },
+      ].map((s) => (
+        <div key={s.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <span className={`rounded-lg p-1.5 ${s.bg}`}>{s.icon}</span>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{s.label}</p>
           </div>
-        ))}
-      </div>
+          <p className="font-mono text-2xl font-bold text-slate-800">{s.value}</p>
+        </div>
+      ))}
     </div>
   );
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-type FilterType = "all" | "day" | "night" | "on-track" | "behind" | "at-risk";
-
-export default function SuperUserManufacturingDashboard() {
-  const today = new Date().toISOString().split("T")[0];
-  const [inputDate, setInputDate] = useState(today);
-  const [selectedDate, setSelectedDate] = useState(today); // 📅 Date State එක
-
+export default function ManufactureFloorDashboard() {
   const [machines, setMachines] = useState<InjectionMachineData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [filter, setFilter] = useState<FilterType>("all");
+  const [filter, setFilter] = useState<"all" | "on-track" | "behind" | "at-risk">("all");
   const router = useRouter();
 
-  // 📅 Fetching Data based on selectedDate
-  const fetchMachines = useCallback(
-    async (isManual = false) => {
-      if (isManual) setRefreshing(true);
-      try {
-        // 1. Fetch Machine Configurations
-        const machinesRes = await api.get(`/api/injection-machines/`);
-        let statusData = [];
-        try {
-          // Fetch live status for health badges
-          const statusRes = await api.get(`/api/esp32/status`);
-          statusData = statusRes.data?.data || [];
-        } catch (e) {
-          console.error("Could not fetch live status", e);
-        }
+  const fetchMachines = useCallback(async (isManual = false) => {
+    if (isManual) setRefreshing(true);
+    try {
+      const machinesRes = await api.get(`/api/injection-machines/`);
+      const statusRes = await api.get(`/api/esp32/status`);
 
-        const rawData = machinesRes.data?.data;
-        const machinesArray: ApiInjectionData[] = Array.isArray(rawData) ? rawData : rawData ? Object.values(rawData) : [];
+      const rawData = machinesRes.data?.data;
+      const machinesArray: ApiInjectionData[] = Array.isArray(rawData) ? rawData : rawData ? Object.values(rawData) : [];
+      const statusData = statusRes.data?.data || [];
 
-        if (machinesArray.length > 0) {
-          const validMachines = machinesArray.filter((val) => Boolean(val.injectionMachineNumber));
-          const machineIds = validMachines.map((m) => m.machineId).filter(Boolean);
-
-          const productionMap: Record<string, number> = {};
-
-          // 2. 📅 Fetch Historical/Current Production for the selected date (Concurrent fetching)
-          if (machineIds.length > 0) {
-            await Promise.all(
-              machineIds.map(async (mId) => {
-                try {
-                  const res = await api.get(`/api/esp32/hourly-production/${mId}?date=${selectedDate}`);
-                  productionMap[mId as string] = res.data?.success ? res.data.totalOutput || 0 : 0;
-                } catch {
-                  productionMap[mId as string] = 0;
-                }
-              }),
-            );
-          }
-
-          const arr: InjectionMachineData[] = validMachines.map((val) => {
+      if (machinesArray.length > 0) {
+        const arr: InjectionMachineData[] = machinesArray
+          .filter((val) => Boolean(val.injectionMachineNumber))
+          .map((val) => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const mStatus = statusData.find((h: any) => h.machineId === val.machineId);
             const cavity = val.cavities || 1;
-
-            // History count එක cavity එකෙන් ගුණ කිරීම
-            const countFromHistory = productionMap[val.machineId as string] || 0;
-            const totalCount = countFromHistory * cavity;
 
             return {
               ...val,
               id: val.injectionMachineNumber as string,
               health: mStatus,
-              totalProductCount: totalCount,
+              // ✅ Cavity අගයෙන් ගුණ කර නිවැරදි ප්‍රතිදානය ලබා දීම
+              totalProductCount: (mStatus?.liveCount || 0) * cavity,
             };
           });
 
-          setMachines(arr.sort((a, b) => a.id.localeCompare(b.id)));
-          setLastUpdated(new Date());
-        } else {
-          setMachines([]);
-          setLastUpdated(new Date());
-        }
-      } catch (err) {
-        console.error("Error fetching machines:", err);
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
+        setMachines(arr.sort((a, b) => a.id.localeCompare(b.id)));
+        setLastUpdated(new Date());
+      } else {
+        setMachines([]);
+        setLastUpdated(new Date());
       }
-    },
-    [selectedDate],
-  ); // selectedDate වෙනස් වූ විට function එක යාවත්කාලීන වේ
+    } catch (err) {
+      console.error("Error fetching machines:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   const fetchMachinesRef = useRef(fetchMachines);
   useEffect(() => {
@@ -284,13 +241,9 @@ export default function SuperUserManufacturingDashboard() {
     };
   }, []);
 
-  // 🔍 Filter logic — දැන් Day / Night Shift ෆිල්ටර් කිරීමද සඳහන් වේ
   const filteredMachines = machines.filter((m) => {
     const t = m.dailyTarget || m.targetCount || 0;
     const pct = progressPct(m.totalProductCount || 0, t);
-
-    if (filter === "day") return m.shift === "Day";
-    if (filter === "night") return m.shift === "Night";
     if (filter === "on-track") return pct >= 90;
     if (filter === "behind") return pct >= 60 && pct < 90;
     if (filter === "at-risk") return pct < 60;
@@ -320,25 +273,14 @@ export default function SuperUserManufacturingDashboard() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-md">
-        <div className="mx-auto flex flex-col sm:flex-row max-w-7xl sm:items-center justify-between px-4 py-3 sm:px-6 gap-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Supervisor View</p>
             <h1 className="text-base font-bold text-slate-800 sm:text-lg">Injection Molding Production</h1>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {/* 📅 Date Picker Section */}
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 p-1.5 px-3 rounded-lg shadow-sm">
-              <input type="date" value={inputDate} onChange={(e) => setInputDate(e.target.value)} className="text-xs text-slate-700 font-medium outline-none cursor-pointer bg-transparent" />
-              <button
-                onClick={() => setSelectedDate(inputDate)}
-                className="flex items-center gap-1 bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-bold py-1.5 px-2.5 rounded transition-colors"
-              >
-                <Search className="h-3 w-3" /> Search
-              </button>
-            </div>
-
-            {lastUpdated && <p className="hidden text-[11px] text-slate-400 lg:block">Updated {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>}
+          <div className="flex items-center gap-3">
+            {lastUpdated && <p className="hidden text-[11px] text-slate-400 sm:block">Updated {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>}
             <button
               onClick={() => fetchMachines(true)}
               disabled={refreshing}
@@ -352,14 +294,12 @@ export default function SuperUserManufacturingDashboard() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        <SummaryBar machines={machines} selectedDate={selectedDate} />
+        <SummaryBar machines={machines} />
 
         <div className="mb-5 flex items-center gap-1.5 overflow-x-auto pb-1">
-          {(["all", "day", "night", "on-track", "behind", "at-risk"] as const).map((f) => {
-            const labels: Record<FilterType, string> = {
+          {(["all", "on-track", "behind", "at-risk"] as const).map((f) => {
+            const labels: Record<typeof f, string> = {
               all: `All (${machines.length})`,
-              day: `Day Shift (${machines.filter((m) => m.shift === "Day").length})`,
-              night: `Night Shift (${machines.filter((m) => m.shift === "Night").length})`,
               "on-track": "On Track",
               behind: "Behind",
               "at-risk": "At Risk",
@@ -383,16 +323,12 @@ export default function SuperUserManufacturingDashboard() {
             <span className="rounded-full bg-slate-100 p-4">
               <Activity className="h-6 w-6 text-slate-400" />
             </span>
-            <p className="text-sm font-semibold text-slate-500">No machines in this category for {selectedDate}</p>
+            <p className="text-sm font-semibold text-slate-500">No machines in this category</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredMachines.map((machine) => (
-              <div
-                key={machine.id}
-                onClick={() => router.push(`/Superuser/ManufacturingFloor/${machine.id}`)}
-                className="text-left cursor-pointer transition-transform hover:scale-105 focus:outline-none"
-              >
+              <div key={machine.id} onClick={() => router.push(`/production-supervisor/${machine.id}`)} className="text-left cursor-pointer transition-transform hover:scale-105 focus:outline-none">
                 <MachineCard machine={machine} />
               </div>
             ))}

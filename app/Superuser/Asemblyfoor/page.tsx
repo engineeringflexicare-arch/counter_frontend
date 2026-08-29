@@ -26,21 +26,21 @@ interface HourlyItem {
 }
 
 const FLOOR_NAME = "Assembly_Floor";
-const REFRESH_INTERVAL = 300000; // විනාඩි 5කට වරක් (5 * 60 * 1000)
+const REFRESH_INTERVAL = 300000; // විනාඩි 5කට වරක්
 
 export default function AssemblyFloorPage() {
   const today = new Date().toISOString().split("T")[0];
 
   const [inputDate, setInputDate] = useState(today);
-  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedDate, setSelectedDate] = useState(today); // 📅 Date State
 
   const [lines, setLines] = useState<LineData[]>([]);
-  const [loading, setLoading] = useState(true); // මුල්ම පාරට පමණක් Load වීමට
+  const [loading, setLoading] = useState(true);
   const [selectedLine, setSelectedLine] = useState<LineData | null>(null);
   const [cumulativeChartData, setCumulativeChartData] = useState<{ time: string; cumulative: number }[]>([]);
   const [floorTotalOutput, setFloorTotalOutput] = useState(0);
 
-  // 1. Initial Load & Background Polling for Lines and Floor Total
+  // 1. Fetch All Floor Data based on selectedDate
   useEffect(() => {
     let isMounted = true;
 
@@ -48,20 +48,19 @@ export default function AssemblyFloorPage() {
       if (isInitialLoad) setLoading(true);
 
       try {
-        // පළමුව Lines ටික ගන්නවා
         const lineRes = await api.get("/api/lines");
         const linesData: LineData[] = lineRes.data?.data || [];
         const filteredLines = linesData.filter((line) => line.floor === FLOOR_NAME || !line.floor);
 
         if (isMounted) setLines(filteredLines);
 
-        // Lines ගත්තට පස්සේ ඒ අදාළ Machines වල Total එක එකවර ගන්නවා (Promise.all)
         const machineIds = filteredLines.map((l) => l.machineId).filter((id): id is string => Boolean(id));
 
         if (machineIds.length > 0) {
           const totalResults = await Promise.all(
             machineIds.map(async (machineId) => {
               try {
+                // 📅 API call එකට selectedDate යැවීම
                 const res = await api.get(`/api/esp32/hourly-production/${machineId}?date=${selectedDate}`);
                 return res.data?.success ? res.data.totalOutput || 0 : 0;
               } catch {
@@ -82,17 +81,17 @@ export default function AssemblyFloorPage() {
       }
     };
 
-    fetchAllFloorData(true); // පළමු වතාවේදී Loader එක පෙන්වයි
+    fetchAllFloorData(true);
 
     const interval = setInterval(() => {
-      fetchAllFloorData(false); // මෙතැන් පටන් Background එකේ Fetch වෙයි (Loader එක පෙන්වන්නේ නැත)
+      fetchAllFloorData(false);
     }, REFRESH_INTERVAL);
 
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [selectedDate]);
+  }, [selectedDate]); // 📅 selectedDate වෙනස් වූ විට නැවත ක්‍රියාත්මක වේ
 
   // 2. Fetch Detailed Data for Selected Line
   useEffect(() => {
@@ -109,6 +108,8 @@ export default function AssemblyFloorPage() {
             return { time: item.hour, cumulative };
           });
           setCumulativeChartData(chartData);
+        } else {
+          setCumulativeChartData([]);
         }
       } catch (error) {
         console.error("Error fetching cumulative chart:", error);
@@ -117,12 +118,10 @@ export default function AssemblyFloorPage() {
 
     fetchCumulativeData();
 
-    // තෝරාගත් Line එකත් යාවත්කාලීන වීම (Background Refresh)
     const interval = setInterval(fetchCumulativeData, REFRESH_INTERVAL);
     return () => clearInterval(interval);
   }, [selectedLine, selectedDate]);
 
-  // Derived stats
   const totalLines = lines.length;
   const activeMachines = lines.filter((l) => l.machineId).length;
   const totalProducts = floorTotalOutput;
@@ -137,14 +136,11 @@ export default function AssemblyFloorPage() {
     { label: "Overall Progress", value: `${overallProgress}%`, icon: Gauge, accent: "bg-purple-50 text-purple-600" },
   ];
 
-  if (loading) {
-    return <Loader />;
-  }
+  if (loading) return <Loader />;
 
-  // ✅ FIX: Single root element, no extra wrapper div, no brace mismatch
   return (
     <div className="bg-neutral-50 w-full min-h-screen p-6">
-      {/* Header */}
+      {/* 📅 Header with Date Picker */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-6 gap-4 rounded-2xl bg-linear-to-r from-slate-800 to-slate-700 p-6 shadow-md">
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-white/10 p-3">
@@ -152,7 +148,7 @@ export default function AssemblyFloorPage() {
           </div>
           <div>
             <h1 className="text-2xl font-extrabold text-white">Assembly Floor</h1>
-            <p className="text-slate-300 text-sm mt-0.5">Real-time production overview</p>
+            <p className="text-slate-300 text-sm mt-0.5">Real-time & Historical production overview</p>
           </div>
         </div>
 
@@ -161,7 +157,6 @@ export default function AssemblyFloorPage() {
             Date:
           </label>
           <input type="date" id="date" value={inputDate} onChange={(e) => setInputDate(e.target.value)} className="text-sm text-slate-800 outline-none cursor-pointer bg-transparent" />
-          {/* Search Button එක */}
           <button onClick={() => setSelectedDate(inputDate)} className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded-md transition-colors">
             <Search className="h-3.5 w-3.5" />
             Search
@@ -205,17 +200,20 @@ export default function AssemblyFloorPage() {
 
       <hr className="border-slate-200 mb-8" />
 
-      {/* Detail Panel or Floor Table */}
+      {/* Detail Panel */}
       {selectedLine ? (
         <div className="animate-fade-in-up">
           <div className="flex justify-between items-end mb-6">
-            <h2 className="text-xl font-bold text-slate-800">{selectedLine.lineId} Detailed Overview</h2>
+            <h2 className="text-xl font-bold text-slate-800">
+              {selectedLine.lineId} Overview for {selectedDate}
+            </h2>
             <button onClick={() => setSelectedLine(null)} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
               Close Details
             </button>
           </div>
 
           <div className="flex flex-col gap-6">
+            {/* 📅 Components වලට Date එක යැවීම */}
             <LineOverviewCard lineId={selectedLine.lineId} />
             <CumulativeChart machineId={selectedLine.machineId || ""} cumulativeData={cumulativeChartData} daily={selectedLine.dailyTarget || 0} />
             <ProductionGapChart lineId={selectedLine.lineId} date={selectedDate} />
@@ -224,7 +222,7 @@ export default function AssemblyFloorPage() {
         </div>
       ) : (
         <div>
-          <h2 className="text-lg font-bold text-slate-700 mb-4">Overall Floor Production</h2>
+          <h2 className="text-lg font-bold text-slate-700 mb-4">Overall Floor Production for {selectedDate}</h2>
           <ProductionTable linesData={lines} floor={FLOOR_NAME} date={selectedDate} />
         </div>
       )}

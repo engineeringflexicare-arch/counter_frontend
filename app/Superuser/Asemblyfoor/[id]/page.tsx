@@ -1,6 +1,5 @@
 "use client";
 
-import axios from "axios";
 import { useEffect, useState, use } from "react";
 import api from "@/lib/api";
 import ProductionTable from "@/app/components/ProductionTable";
@@ -37,6 +36,11 @@ interface LineApiData {
   shiftEndTime?: string;
 }
 
+interface LineApiListResponse {
+  success?: boolean;
+  data?: LineApiData[];
+}
+
 export default function Page({ params }: PageProps) {
   const resolvedParams = use(params);
   const lineId = resolvedParams.lineId;
@@ -60,15 +64,15 @@ export default function Page({ params }: PageProps) {
     const fetchLineDetails = async () => {
       try {
         setLoading(true);
-        let lineRes: any;
+        let lineRes: { data?: { success?: boolean; data?: LineApiData } } | undefined;
 
         try {
-          lineRes = await api.get(`/api/lines/${lineId}`);
+          lineRes = await api.get<{ success?: boolean; data?: LineApiData }>(`/api/lines/${lineId}`);
         } catch (err) {
           const axiosErr = err as { response?: { status?: number } };
           if (axiosErr.response?.status === 404) {
-            const linesRes = await api.get("/api/lines");
-            const foundLine = (linesRes.data?.data || []).find((line: any) => line.lineId === lineId);
+            const linesRes = await api.get<LineApiListResponse>("/api/lines");
+            const foundLine = (linesRes.data?.data ?? []).find((line) => line.lineId === lineId);
             if (foundLine) {
               lineRes = { data: { success: true, data: foundLine } };
             } else {
@@ -79,7 +83,7 @@ export default function Page({ params }: PageProps) {
           }
         }
 
-        if (lineRes.data?.success) {
+        if (lineRes?.data?.success) {
           const fetchedLine: LineApiData = lineRes.data.data || {};
           const fetchedMachineId = fetchedLine.machineId;
           const target = fetchedLine.dailyTarget || 0;

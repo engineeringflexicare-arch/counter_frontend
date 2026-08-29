@@ -3,14 +3,14 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
-import { ArrowLeft, Plus, Pencil, Trash2, X, Loader2, Cpu, AlertTriangle, Search, ChevronRight } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, X, Loader2, Cpu, AlertTriangle, Search, ChevronRight, Clock } from "lucide-react";
 
 interface InjectionRecord {
   _id?: string;
   injectionMachineNumber: string;
   mouldNumber?: string;
   cavities?: number;
-  machineId?: string; // ESP32 Device ID
+  machineId?: string;
   productCode?: string;
   dailyTarget?: number;
   hourlyTarget?: number;
@@ -32,7 +32,7 @@ interface FormState {
   injectionMachineNumber: string;
   mouldNumber: string;
   cavities: string;
-  machineId: string; // ESP32 Device ID
+  machineId: string;
   productCode: string;
   dailyTarget: string;
   hourlyTarget: string;
@@ -81,16 +81,38 @@ const shiftColors: Record<string, string> = {
   Night: "bg-indigo-50 text-indigo-700 border-indigo-200",
 };
 
+const getRealTimeShift = (startTime?: string, endTime?: string, dbShift?: string, currentTime?: Date) => {
+  if (!startTime || !endTime) return dbShift || "Day";
+
+  const now = currentTime || new Date();
+  const currentMins = now.getHours() * 60 + now.getMinutes();
+
+  const [startH, startM] = startTime.split(":").map(Number);
+  const startMins = startH * 60 + startM;
+
+  const [endH, endM] = endTime.split(":").map(Number);
+  const endMins = endH * 60 + endM;
+
+  if (startMins < endMins) {
+    if (currentMins >= startMins && currentMins < endMins) return "Day";
+    return "Night";
+  } else {
+    if (currentMins >= startMins || currentMins < endMins) return "Night";
+    return "Day";
+  }
+};
+
 export default function ManageInjectionMachinesPage() {
   const router = useRouter();
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
-  // ✅ Update this to match your backend route for injection machines
   const API_ENDPOINT = `${API_BASE_URL}/api/injection-machines`;
 
   const [records, setRecords] = useState<InjectionRecord[]>([]);
   const [espDevices, setEspDevices] = useState<MachineOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -108,8 +130,12 @@ export default function ManageInjectionMachinesPage() {
   };
 
   useEffect(() => {
-    let isMounted = true;
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
 
+  useEffect(() => {
+    let isMounted = true;
     const fetchRecords = async () => {
       try {
         setLoading(true);
@@ -119,15 +145,13 @@ export default function ManageInjectionMachinesPage() {
           setRecords(arr.sort((a, b) => a.injectionMachineNumber.localeCompare(b.injectionMachineNumber)));
         }
       } catch (error) {
-        if (isMounted) showToast("error", "Failed to load records.");
         console.error("Failed to load records:", error);
+        if (isMounted) showToast("error", "Failed to load records.");
       } finally {
         if (isMounted) setLoading(false);
       }
     };
-
     fetchRecords();
-
     return () => {
       isMounted = false;
     };
@@ -180,7 +204,19 @@ export default function ManageInjectionMachinesPage() {
   };
 
   const handleChange = (field: keyof FormState, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm((prev) => {
+      const updated = { ...prev, [field]: value };
+
+      if (field === "shiftStartTime" && value) {
+        const hour = parseInt(value.split(":")[0], 10);
+        if (hour >= 6 && hour < 18) {
+          updated.shift = "Day";
+        } else {
+          updated.shift = "Night";
+        }
+      }
+      return updated;
+    });
   };
 
   const handleSubmit = async () => {
@@ -193,7 +229,7 @@ export default function ManageInjectionMachinesPage() {
       return;
     }
     if (modalMode === "assign" && !form.machineId.trim()) {
-      setFormError("ESP32 Device ID is required to assign.");
+      setFormError("ESP32 Device ID is required.");
       return;
     }
 
@@ -233,7 +269,8 @@ export default function ManageInjectionMachinesPage() {
         setRecords(arr.sort((a, b) => a.injectionMachineNumber.localeCompare(b.injectionMachineNumber)));
       }
     } catch (error) {
-      showToast(error instanceof Error ? "error" : "error", "Failed to update record.");
+      console.error("Error updating record:", error);
+      showToast("error", "Failed to update record.");
     } finally {
       setSaving(false);
     }
@@ -243,21 +280,17 @@ export default function ManageInjectionMachinesPage() {
     if (!removeTarget) return;
     setRemoving(true);
     try {
-      await api.delete(`${API_ENDPOINT}/remove`, {
-        data: { injectionMachineNumber: removeTarget.injectionMachineNumber },
-        ...getHeaders(),
-      });
-      showToast("success", `${removeTarget.injectionMachineNumber} assignment removed.`);
+      await api.delete(`${API_ENDPOINT}/remove`, { data: { injectionMachineNumber: removeTarget.injectionMachineNumber }, ...getHeaders() });
+      showToast("success", "Assignment removed.");
       setRemoveTarget(null);
-
       const res = await api.get(API_ENDPOINT, getHeaders());
       if (res.data?.success && res.data?.data) {
         const arr = Object.values(res.data.data) as InjectionRecord[];
         setRecords(arr.sort((a, b) => a.injectionMachineNumber.localeCompare(b.injectionMachineNumber)));
       }
     } catch (error) {
-      showToast("error", "Failed to remove assignment.");
       console.error("Error removing assignment:", error);
+      showToast("error", "Failed to remove assignment.");
     } finally {
       setRemoving(false);
     }
@@ -285,8 +318,7 @@ export default function ManageInjectionMachinesPage() {
               onClick={() => router.push("/Supervisor/production-floor")}
               className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Floor
+              <ArrowLeft className="h-3.5 w-3.5" /> Floor
             </button>
             <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
             <div className="flex items-center gap-2">
@@ -299,14 +331,11 @@ export default function ManageInjectionMachinesPage() {
               </div>
             </div>
           </div>
-
           <button
             onClick={openAssignModal}
             className="flex items-center gap-2 rounded-lg bg-teal-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm shadow-teal-200 transition hover:bg-teal-500"
           >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Assign Machine</span>
-            <span className="sm:hidden">Assign</span>
+            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Assign Machine</span> <span className="sm:hidden">Assign</span>
           </button>
         </div>
       </header>
@@ -315,18 +344,9 @@ export default function ManageInjectionMachinesPage() {
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
             { label: "Total Machines", value: records.length },
-            {
-              label: "Assigned ESPs",
-              value: records.filter((r) => r.machineId).length,
-            },
-            {
-              label: "Day Shift",
-              value: records.filter((r) => r.shift === "Day").length,
-            },
-            {
-              label: "Night Shift",
-              value: records.filter((r) => r.shift === "Night").length,
-            },
+            { label: "Assigned ESPs", value: records.filter((r) => r.machineId).length },
+            { label: "Currently Day Shift", value: records.filter((r) => getRealTimeShift(r.shiftStartTime, r.shiftEndTime, r.shift, currentTime) === "Day").length },
+            { label: "Currently Night Shift", value: records.filter((r) => getRealTimeShift(r.shiftStartTime, r.shiftEndTime, r.shift, currentTime) === "Night").length },
           ].map((s) => (
             <div key={s.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{s.label}</p>
@@ -362,7 +382,6 @@ export default function ManageInjectionMachinesPage() {
                 <Cpu className="h-6 w-6 text-slate-400" />
               </span>
               <p className="text-sm font-medium text-slate-500">No machines found</p>
-              <p className="text-xs text-slate-400">{search ? "Try a different search term." : "Assign your first machine to get started."}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -371,73 +390,70 @@ export default function ManageInjectionMachinesPage() {
                   <tr className="border-b border-slate-100 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                     <th className="px-5 py-3">Machine No</th>
                     <th className="px-5 py-3">Mould No</th>
-                    <th className="px-5 py-3">Cavities</th>
                     <th className="px-5 py-3">ESP32 Device</th>
                     <th className="px-5 py-3">Product</th>
-                    <th className="px-5 py-3">Daily Target</th>
-                    <th className="px-5 py-3">Shift</th>
+                    <th className="px-5 py-3">Target</th>
+                    <th className="px-5 py-3">Active Shift</th>
                     <th className="px-5 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredRecords.map((record) => (
-                    <tr key={record.injectionMachineNumber} className="group transition hover:bg-slate-50/60">
-                      <td className="px-5 py-3.5">
-                        <span className="font-mono text-sm font-bold text-slate-800">{record.injectionMachineNumber}</span>
-                      </td>
-                      <td className="px-5 py-3.5 font-mono text-xs text-slate-600">{record.mouldNumber || <span className="text-slate-300">—</span>}</td>
-                      <td className="px-5 py-3.5 font-mono text-sm tabular-nums text-slate-700">{record.cavities || <span className="text-slate-300">—</span>}</td>
-                      <td className="px-5 py-3.5">
-                        {record.machineId ? (
-                          <span className="inline-flex items-center gap-1 rounded-md border border-teal-200 bg-teal-50 px-2 py-0.5 font-mono text-xs font-medium text-teal-700">
-                            <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
-                            {record.machineId}
+                  {filteredRecords.map((record) => {
+                    const activeShift = getRealTimeShift(record.shiftStartTime, record.shiftEndTime, record.shift, currentTime);
+                    return (
+                      <tr key={record.injectionMachineNumber} className="group transition hover:bg-slate-50/60">
+                        <td className="px-5 py-3.5">
+                          <span className="font-mono text-sm font-bold text-slate-800">{record.injectionMachineNumber}</span>
+                        </td>
+                        <td className="px-5 py-3.5 font-mono text-xs text-slate-600">{record.mouldNumber || "—"}</td>
+                        <td className="px-5 py-3.5">
+                          {record.machineId ? (
+                            <span className="inline-flex items-center gap-1 rounded-md border border-teal-200 bg-teal-50 px-2 py-0.5 font-mono text-xs font-medium text-teal-700">
+                              <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
+                              {record.machineId}
+                            </span>
+                          ) : (
+                            <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs text-slate-400">Unassigned</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 font-mono text-xs text-slate-600">{record.productCode || "—"}</td>
+                        <td className="px-5 py-3.5 font-mono text-sm tabular-nums text-slate-700">{record.dailyTarget ? record.dailyTarget.toLocaleString() : "—"}</td>
+                        <td className="px-5 py-3.5">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${shiftColors[activeShift] ?? "bg-slate-50 text-slate-500 border-slate-200"}`}
+                          >
+                            <Clock className="h-3 w-3" />
+                            {activeShift}
                           </span>
-                        ) : (
-                          <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs text-slate-400">Unassigned</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5 font-mono text-xs text-slate-600">{record.productCode || <span className="text-slate-300">—</span>}</td>
-                      <td className="px-5 py-3.5 font-mono text-sm tabular-nums text-slate-700">
-                        {record.dailyTarget ? record.dailyTarget.toLocaleString() : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {record.shift ? (
-                          <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${shiftColors[record.shift] ?? "bg-slate-50 text-slate-500 border-slate-200"}`}>{record.shift}</span>
-                        ) : (
-                          <span className="text-slate-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center justify-end gap-2 opacity-0 transition group-hover:opacity-100">
-                          <button
-                            onClick={() => openEditModal(record)}
-                            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-teal-300 hover:bg-teal-50 hover:text-teal-700"
-                          >
-                            <Pencil className="h-3 w-3" />
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => setRemoveTarget(record)}
-                            disabled={!record.machineId}
-                            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            Remove
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                          <div className="text-[10px] text-slate-400 mt-1">
+                            {record.shiftStartTime} - {record.shiftEndTime}
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center justify-end gap-2 opacity-0 transition group-hover:opacity-100">
+                            <button
+                              onClick={() => openEditModal(record)}
+                              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-teal-300 hover:bg-teal-50 hover:text-teal-700"
+                            >
+                              <Pencil className="h-3 w-3" /> Edit
+                            </button>
+                            <button
+                              onClick={() => setRemoveTarget(record)}
+                              disabled={!record.machineId}
+                              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-30"
+                            >
+                              <Trash2 className="h-3 w-3" /> Remove
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </div>
-
-        <p className="mt-3 text-right text-xs text-slate-400">
-          {filteredRecords.length} of {records.length} machines
-        </p>
       </main>
 
       {/* Assign / Edit Modal */}
@@ -445,17 +461,13 @@ export default function ManageInjectionMachinesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" onClick={closeModal}>
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-              <div className="flex items-center gap-2.5">
-                <span className="rounded-lg bg-teal-50 p-1.5">
-                  <Cpu className="h-4 w-4 text-teal-600" />
-                </span>
-                <h2 className="text-sm font-bold text-slate-800">{modalMode === "assign" ? "Assign New Machine" : `Edit ${form.injectionMachineNumber}`}</h2>
-              </div>
-              <button onClick={closeModal} className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">
+              <h2 className="text-sm font-bold text-slate-800">{modalMode === "assign" ? "Assign New Machine" : `Edit ${form.injectionMachineNumber}`}</h2>
+              <button onClick={closeModal} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100">
                 <X className="h-4 w-4" />
               </button>
             </div>
 
+            {/* 📋 Updated Form Grid with all requested fields */}
             <div className="grid grid-cols-1 gap-4 px-6 py-5 sm:grid-cols-2">
               <Field label="Machine Number" required>
                 <input
@@ -463,8 +475,8 @@ export default function ManageInjectionMachinesPage() {
                   value={form.injectionMachineNumber}
                   disabled={modalMode === "edit"}
                   onChange={(e) => handleChange("injectionMachineNumber", e.target.value)}
-                  placeholder="INJ_01 / EXT_01"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="INJ_01"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none"
                 />
               </Field>
 
@@ -473,8 +485,8 @@ export default function ManageInjectionMachinesPage() {
                   type="text"
                   value={form.mouldNumber}
                   onChange={(e) => handleChange("mouldNumber", e.target.value)}
-                  placeholder="MLD-2024-05"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                  placeholder="MLD-01"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none"
                 />
               </Field>
 
@@ -484,7 +496,7 @@ export default function ManageInjectionMachinesPage() {
                   value={form.cavities}
                   onChange={(e) => handleChange("cavities", e.target.value)}
                   placeholder="4"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none"
                 />
               </Field>
 
@@ -492,9 +504,9 @@ export default function ManageInjectionMachinesPage() {
                 <select
                   value={form.machineId}
                   onChange={(e) => handleChange("machineId", e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none"
                 >
-                  <option value="">{modalMode === "edit" ? "Unassigned" : "Select ESP32 device…"}</option>
+                  <option value="">{modalMode === "edit" ? "Unassigned" : "Select ESP32…"}</option>
                   {espOptions.map((m) => (
                     <option key={m} value={m}>
                       {m}
@@ -508,8 +520,8 @@ export default function ManageInjectionMachinesPage() {
                   type="text"
                   value={form.productCode}
                   onChange={(e) => handleChange("productCode", e.target.value)}
-                  placeholder="032-000-1235"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                  placeholder="PROD-001"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none"
                 />
               </Field>
 
@@ -519,7 +531,7 @@ export default function ManageInjectionMachinesPage() {
                   value={form.floor}
                   onChange={(e) => handleChange("floor", e.target.value)}
                   placeholder="Production Floor"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none"
                 />
               </Field>
 
@@ -529,7 +541,7 @@ export default function ManageInjectionMachinesPage() {
                   value={form.dailyTarget}
                   onChange={(e) => handleChange("dailyTarget", e.target.value)}
                   placeholder="2880"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none"
                 />
               </Field>
 
@@ -538,8 +550,8 @@ export default function ManageInjectionMachinesPage() {
                   type="number"
                   value={form.hourlyTarget}
                   onChange={(e) => handleChange("hourlyTarget", e.target.value)}
-                  placeholder="410"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                  placeholder="240"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none"
                 />
               </Field>
 
@@ -548,8 +560,8 @@ export default function ManageInjectionMachinesPage() {
                   type="number"
                   value={form.teamMembers}
                   onChange={(e) => handleChange("teamMembers", e.target.value)}
-                  placeholder="2"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                  placeholder="3"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none"
                 />
               </Field>
 
@@ -558,17 +570,31 @@ export default function ManageInjectionMachinesPage() {
                   type="text"
                   value={form.supervisor}
                   onChange={(e) => handleChange("supervisor", e.target.value)}
-                  placeholder="Hashini"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                  placeholder="John Doe"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none"
                 />
               </Field>
 
-              <Field label="Shift">
-                <select
-                  value={form.shift}
-                  onChange={(e) => handleChange("shift", e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100"
-                >
+              <Field label="Shift Start">
+                <input
+                  type="time"
+                  value={form.shiftStartTime}
+                  onChange={(e) => handleChange("shiftStartTime", e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none"
+                />
+              </Field>
+
+              <Field label="Shift End">
+                <input
+                  type="time"
+                  value={form.shiftEndTime}
+                  onChange={(e) => handleChange("shiftEndTime", e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none"
+                />
+              </Field>
+
+              <Field label="Shift (Auto Calculated / Manual)">
+                <select value={form.shift} onChange={(e) => handleChange("shift", e.target.value)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none">
                   <option value="Day">Day</option>
                   <option value="Night">Night</option>
                 </select>
@@ -579,25 +605,7 @@ export default function ManageInjectionMachinesPage() {
                   type="date"
                   value={form.plannedDate}
                   onChange={(e) => handleChange("plannedDate", e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100"
-                />
-              </Field>
-
-              <Field label="Shift Start">
-                <input
-                  type="time"
-                  value={form.shiftStartTime}
-                  onChange={(e) => handleChange("shiftStartTime", e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100"
-                />
-              </Field>
-
-              <Field label="Shift End">
-                <input
-                  type="time"
-                  value={form.shiftEndTime}
-                  onChange={(e) => handleChange("shiftEndTime", e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none"
                 />
               </Field>
             </div>
@@ -610,23 +618,18 @@ export default function ManageInjectionMachinesPage() {
             )}
 
             <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-slate-50/60 px-6 py-4">
-              <button onClick={closeModal} disabled={saving} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100">
+              <button onClick={closeModal} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">
                 Cancel
               </button>
-              <button
-                onClick={handleSubmit}
-                disabled={saving}
-                className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-teal-100 transition hover:bg-teal-500 disabled:opacity-60"
-              >
-                {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                {modalMode === "assign" ? "Assign" : "Save Changes"}
+              <button onClick={handleSubmit} disabled={saving} className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-500">
+                {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />} {modalMode === "assign" ? "Assign" : "Save Changes"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Remove confirmation */}
+      {/* Remove Assignment Confirmation Modal */}
       {removeTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" onClick={() => !removing && setRemoveTarget(null)}>
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-slate-200" onClick={(e) => e.stopPropagation()}>
@@ -641,32 +644,25 @@ export default function ManageInjectionMachinesPage() {
               cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setRemoveTarget(null)}
-                disabled={removing}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-              >
+              <button onClick={() => setRemoveTarget(null)} disabled={removing} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
                 Cancel
               </button>
               <button
                 onClick={confirmRemove}
                 disabled={removing}
-                className="flex items-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-400 disabled:opacity-60"
+                className="flex items-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-400 disabled:opacity-60"
               >
-                {removing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Remove
+                {removing && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Remove
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Toast */}
+      {/* Toast Notification */}
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium shadow-lg ${
-            toast.type === "success" ? "border-teal-200 bg-white text-teal-700 shadow-teal-100" : "border-red-200 bg-white text-red-600 shadow-red-100"
-          }`}
+          className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium shadow-lg ${toast.type === "success" ? "border-teal-200 bg-white text-teal-700 shadow-teal-100" : "border-red-200 bg-white text-red-600 shadow-red-100"}`}
         >
           {toast.type === "success" ? <span className="h-1.5 w-1.5 rounded-full bg-teal-500" /> : <AlertTriangle className="h-3.5 w-3.5 text-red-400" />}
           {toast.text}
@@ -676,12 +672,11 @@ export default function ManageInjectionMachinesPage() {
   );
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }): React.ReactElement {
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-        {required && <span className="ml-1 text-red-400">*</span>}
+        {label} {required && <span className="ml-1 text-red-400">*</span>}
       </span>
       {children}
     </label>
