@@ -84,6 +84,23 @@ const generateShiftHours = (startTime: string, endTime: string): string[] => {
   return hours;
 };
 
+const mapWithConcurrency = async <T, R>(items: T[], concurrency: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> => {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  const runWorker = async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index], index);
+    }
+  };
+
+  const workerCount = Math.min(Math.max(1, concurrency), items.length || 1);
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+  return results;
+};
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function ProductionTable({ linesData, floor = "Assembly Floor", lineId, date }: ProductionTableProps) {
@@ -192,7 +209,11 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
 
         const filteredData = lineId && linesMap[lineId] ? { [lineId]: linesMap[lineId] } : linesMap;
 
-        const rowGroupPromises = Object.entries(filteredData).map(async ([lineKey, lineValue]): Promise<TableRow[]> => {
+        const lineEntries = Object.entries(filteredData);
+        // Do not fire one heavy history request per machine at the same time.
+        // The backend is also streaming/paging history, so a small client-side
+        // concurrency limit keeps both browser and free-tier server memory stable.
+        const rowGroups = await mapWithConcurrency(lineEntries, 2, async ([lineKey, lineValue]) => {
           const line = lineValue as ApiLineData;
           const targetMachineId = line.machineId;
 
@@ -202,7 +223,7 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
 
           const baseRow = {
             productCode: line.productCode || "-",
-            cavities: line.cavities || 1, // ✅ Added cavity tracking
+            cavities: line.cavities || 1,
             plannedMembers: line.plannedMembers || 0,
             hourlyTarget: line.hourlyTarget || 0,
             dailyTarget: line.dailyTarget || 0,
@@ -215,19 +236,16 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
           const lineLabel = lineKey.replaceAll("_", " ");
 
           try {
+            if (!targetMachineId) {
+              return [{ ...baseRow, assemblyLine: lineLabel, hourlyData: {}, totalOutput: 0 }];
+            }
+
             const params = new URLSearchParams();
             if (date) params.set("date", date);
             params.set("shiftStartTime", startTime);
             params.set("shiftEndTime", endTime);
 
-            let res;
-            if (targetMachineId) {
-              res = await api.get(`/api/esp32/hourly-production/${targetMachineId}`, {
-                params: params,
-              });
-            } else {
-              return [{ ...baseRow, assemblyLine: lineLabel, hourlyData: {}, totalOutput: 0 }];
-            }
+            const res = await api.get(`/api/esp32/hourly-production/${encodeURIComponent(targetMachineId)}`, { params });
 
             if (!res.data?.success) {
               return [{ ...baseRow, assemblyLine: lineLabel, hourlyData: {}, totalOutput: 0 }];
@@ -236,35 +254,33 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
             const hourlyMap: Record<string, number> = {};
             if (Array.isArray(res.data?.hourlyData)) {
               res.data.hourlyData.forEach((item: ApiHourlyItem) => {
-                hourlyMap[item.hour] = item.output;
+                hourlyMap[item.hour] = Number(item.output) || 0;
               });
             }
 
             const runs: ApiRunItem[] = Array.isArray(res.data?.runs) ? res.data.runs : [];
 
             if (runs.length <= 1) {
-              return [
-                {
-                  ...baseRow,
-                  assemblyLine: lineLabel,
-                  hourlyData: hourlyMap,
-                  totalOutput: res.data.totalOutput || 0,
-                },
-              ];
+              return [{
+                ...baseRow,
+                assemblyLine: lineLabel,
+                hourlyData: hourlyMap,
+                totalOutput: Number(res.data.totalOutput) || 0,
+              }];
             }
 
             return runs.map((run) => {
               const runHourlyMap: Record<string, number> = {};
               if (Array.isArray(run.hourlyData)) {
                 run.hourlyData.forEach((item) => {
-                  runHourlyMap[item.hour] = item.output;
+                  runHourlyMap[item.hour] = Number(item.output) || 0;
                 });
               }
               return {
                 ...baseRow,
                 assemblyLine: `${lineLabel} (Run ${run.runNo}/${runs.length})`,
                 hourlyData: runHourlyMap,
-                totalOutput: run.totalOutput,
+                totalOutput: Number(run.totalOutput) || 0,
                 runNo: run.runNo,
                 runCount: runs.length,
                 runStartTime: run.startTime,
@@ -277,7 +293,7 @@ export default function ProductionTable({ linesData, floor = "Assembly Floor", l
           }
         });
 
-        const resolved = (await Promise.all(rowGroupPromises)).flat();
+        const resolved = rowGroups.flat();
         if (isMounted) {
           setRows(resolved);
           setLoading(false);
