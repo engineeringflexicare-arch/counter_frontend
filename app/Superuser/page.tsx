@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import api from "../../lib/api";
 import { useRouter } from "next/navigation";
 import { Factory, Layers, Activity, Package, Target, Gauge, BarChart3, PieChart as PieIcon, TrendingUp, LineChart as LineIcon, Cpu } from "lucide-react";
@@ -119,27 +119,32 @@ export default function SuperuserDashboard() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAllData();
-    const interval = setInterval(fetchAllData, 5000);
+    const interval = setInterval(fetchAllData, 10000);
     return () => clearInterval(interval);
   }, [fetchAllData]);
 
   // ── Combined Hourly Production Trend ───────────────────────────────────────
+  const hourlyDevices = useMemo(() => [
+    ...lines.filter((l) => Boolean(l.machineId)).map((l) => ({ machineId: l.machineId!, start: l.shiftStartTime || "08:30", end: l.shiftEndTime || "20:30" })),
+    ...injectionMachines.filter((m) => Boolean(m.machineId)).map((m) => ({ machineId: m.machineId!, start: m.shiftStartTime || "08:30", end: m.shiftEndTime || "20:30" })),
+  ], [lines, injectionMachines]);
+  const hourlyDeviceKey = useMemo(() => hourlyDevices.map((d) => `${d.machineId}:${d.start}:${d.end}`).sort().join("|"), [hourlyDevices]);
+
   useEffect(() => {
-    const allDevices = [
-      ...lines.filter((l) => Boolean(l.machineId)).map((l) => ({ machineId: l.machineId!, start: l.shiftStartTime || "08:30", end: l.shiftEndTime || "20:30" })),
-      ...injectionMachines.filter((m) => Boolean(m.machineId)).map((m) => ({ machineId: m.machineId!, start: m.shiftStartTime || "08:30", end: m.shiftEndTime || "20:30" })),
-    ];
-
     let isMounted = true;
-    const fetchHourlyTrend = async () => {
-      if (allDevices.length === 0) {
-        if (isMounted) setHourlyTrend([]);
-        return;
-      }
+    let running = false;
 
+    const fetchHourlyTrend = async () => {
+      if (running) return;
+      running = true;
       try {
+        if (hourlyDevices.length === 0) {
+          if (isMounted) setHourlyTrend([]);
+          return;
+        }
+
         const responses = await Promise.all(
-          allDevices.map(async (dev) => {
+          hourlyDevices.map(async (dev) => {
             try {
               const res = await api.get(`/api/esp32/hourly-production/${dev.machineId}?date=${today}&shiftStartTime=${encodeURIComponent(dev.start)}&shiftEndTime=${encodeURIComponent(dev.end)}`);
               return res.data?.success && Array.isArray(res.data.hourlyData) ? (res.data.hourlyData as { hour: string; output: number }[]) : [];
@@ -150,40 +155,34 @@ export default function SuperuserDashboard() {
         );
 
         const byStartMin: Record<number, { label: string; output: number }> = {};
-
         responses.flat().forEach((item) => {
           const startMin = parseBucketStartMinutes(item.hour);
           if (startMin === null) return;
-
-          if (!byStartMin[startMin]) {
-            byStartMin[startMin] = { label: item.hour, output: 0 };
-          }
+          if (!byStartMin[startMin]) byStartMin[startMin] = { label: item.hour, output: 0 };
           byStartMin[startMin].output += item.output || 0;
         });
 
         let cumulative = 0;
-        const trend = Object.keys(byStartMin)
-          .map(Number)
-          .sort((a, b) => a - b)
-          .map((startMin) => {
-            const bucket = byStartMin[startMin];
-            cumulative += bucket.output;
-            return { hour: bucket.label, output: bucket.output, cumulative };
-          });
-
+        const trend = Object.keys(byStartMin).map(Number).sort((a, b) => a - b).map((startMin) => {
+          const bucket = byStartMin[startMin];
+          cumulative += bucket.output;
+          return { hour: bucket.label, output: bucket.output, cumulative };
+        });
         if (isMounted) setHourlyTrend(trend);
       } catch (err) {
         console.error("Error fetching hourly trend:", err);
+      } finally {
+        running = false;
       }
     };
 
     fetchHourlyTrend();
-    const interval = setInterval(fetchHourlyTrend, 30000);
+    const interval = setInterval(fetchHourlyTrend, 60000);
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [lines, injectionMachines, today]);
+  }, [hourlyDeviceKey, hourlyDevices, today]);
 
   if (loading) {
     return (

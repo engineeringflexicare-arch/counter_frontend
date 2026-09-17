@@ -66,7 +66,7 @@ export default function LineOverviewCard({ lineId, date }: Props) {
     // අද දවස නම් පමණක් refresh කරන්න.
     const isToday = !date || date === new Date().toISOString().split("T")[0];
     if (isToday) {
-      interval = setInterval(fetchData, 3000);
+      interval = setInterval(fetchData, 10000);
     }
 
     return () => {

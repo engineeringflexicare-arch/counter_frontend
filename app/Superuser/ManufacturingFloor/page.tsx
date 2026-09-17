@@ -277,7 +277,7 @@ export default function SuperUserManufacturingDashboard() {
 
   useEffect(() => {
     const initialTimer = setTimeout(() => fetchMachinesRef.current(), 0);
-    const iv = setInterval(() => fetchMachinesRef.current(), 30000);
+    const iv = setInterval(() => fetchMachinesRef.current(), 60000);
     return () => {
       clearTimeout(initialTimer);
       clearInterval(iv);

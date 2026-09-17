@@ -39,7 +39,7 @@ export default function LineCard({ line, product, machine, target: propTarget, c
     fetchLiveMetrics();
 
     // තත්පර 3න් 3ට දත්ත ලබාගැනීම
-    const interval = setInterval(fetchLiveMetrics, 3000);
+    const interval = setInterval(fetchLiveMetrics, 10000);
 
     return () => clearInterval(interval);
   }, [machine]);
