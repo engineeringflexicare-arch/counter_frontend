@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import PWAInstallPrompt from "../components/PWAInstallPrompt";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -39,7 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
       <body>
         {children}
-        <PWAInstallPrompt />
+        <SpeedInsights />
       </body>
     </html>
   );

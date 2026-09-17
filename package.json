@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@react-icons/all-files": "^4.1.0",
+    "@vercel/speed-insights": "^2.0.0",
     "axios": "^1.17.0",
     "dotenv": "^17.4.2",
     "lucide-react": "^1.17.0",
@@ -33,6 +34,7 @@
   },
   "allowScripts": {
     "next-pwa-pack@2.0.0": true,
+    "sharp@0.34.5": true,
     "unrs-resolver@1.12.2": true
   }
 }
