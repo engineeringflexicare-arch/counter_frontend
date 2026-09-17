@@ -229,7 +229,7 @@ export default function AdminPage() {
       fetchDashboardData();
     }
 
-    const interval = setInterval(fetchDashboardData, 10000); // 10s auto-refresh
+    const interval = setInterval(fetchDashboardData, 30000); // 10s auto-refresh
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

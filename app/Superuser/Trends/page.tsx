@@ -286,7 +286,7 @@ export default function TrendsPage() {
 
   useEffect(() => {
     if (!isCurrentPeriod) return;
-    const interval = setInterval(() => fetchTrends(true), 60000);
+    const interval = setInterval(() => fetchTrends(true), 300000);
     return () => clearInterval(interval);
   }, [isCurrentPeriod, fetchTrends]);
 

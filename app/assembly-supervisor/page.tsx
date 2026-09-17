@@ -174,7 +174,7 @@ export default function AssemblySupervisorDashboard() {
       if (isMounted) {
         fetchAllData();
       }
-    }, 5000);
+    }, 10000);
     return () => {
       isMounted = false;
       clearInterval(interval);

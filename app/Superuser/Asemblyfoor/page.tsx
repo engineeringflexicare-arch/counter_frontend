@@ -223,7 +223,7 @@ export default function AssemblyFloorPage() {
       ) : (
         <div>
           <h2 className="text-lg font-bold text-slate-700 mb-4">Overall Floor Production for {selectedDate}</h2>
-          <ProductionTable linesData={lines} floor={FLOOR_NAME} date={selectedDate} />
+          {/* <ProductionTable linesData={lines} floor={FLOOR_NAME} date={selectedDate} /> */}
         </div>
       )}
     </div>

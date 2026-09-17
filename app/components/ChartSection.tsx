@@ -14,6 +14,7 @@ export default function ChartSection({ lineId }: ChartSectionProps) {
   const [cumulativeData, setCumulativeData] = useState<CumulativeDataPoint[]>([]);
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+  const today = new Date().toISOString().split("T")[0];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -27,7 +28,7 @@ export default function ChartSection({ lineId }: ChartSectionProps) {
         setMachineId(machine);
         setDailyTarget(liveRes.data.target || 0);
 
-        const outputRes = await axios.get(`${API_BASE_URL}/api/esp32/total-output/${machine}`);
+        const outputRes = await axios.get(`${API_BASE_URL}/api/esp32/hourly-production/${encodeURIComponent(machine)}?date=${today}`);
 
         if (outputRes.data.success) {
           let runningTotal = 0;
@@ -53,10 +54,10 @@ export default function ChartSection({ lineId }: ChartSectionProps) {
 
     fetchData();
 
-    const interval = setInterval(fetchData, 10000);
+    const interval = setInterval(fetchData, 30000);
 
     return () => clearInterval(interval);
-  }, [API_BASE_URL, lineId]);
+  }, [API_BASE_URL, lineId, today]);
 
   return <CumulativeChart machineId={machineId} cumulativeData={cumulativeData} daily={dailyTarget} />;
 }

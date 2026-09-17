@@ -49,18 +49,16 @@ export default function InjectionMachineOverviewCard({ machineNumber, date }: Pr
 
           let liveCount = machine.totalProductCount || 0;
 
-          // 2. Firebase එකෙන් සජීවී කවුන්ට් එක (Live Count) ලබාගැනීම සඳහා status API එකට කෝල් කිරීම
+          // Read only this machine's live snapshot instead of downloading the
+          // status of every machine on every card refresh.
           if (espId) {
             try {
-              const statusRes = await api.get<{ success: boolean; data: EspStatus[] }>(`/api/esp32/status`);
-              if (statusRes.data?.success && Array.isArray(statusRes.data.data)) {
-                const matchedEsp = statusRes.data.data.find((item: EspStatus) => item.machineId === espId);
-                if (matchedEsp && typeof matchedEsp.liveCount === "number") {
-                  liveCount = matchedEsp.liveCount;
-                }
-              }
+              const statusRes = await api.get(`/api/esp32/machine/${encodeURIComponent(espId)}`);
+              const snapshot = statusRes.data?.data;
+              const count = Number(snapshot?.LiveStatus?.Count);
+              if (Number.isFinite(count)) liveCount = count;
             } catch (statusErr) {
-              console.error("Error fetching ESP status live count:", statusErr);
+              console.error("Error fetching ESP live count:", statusErr);
             }
           }
 
@@ -83,7 +81,7 @@ export default function InjectionMachineOverviewCard({ machineNumber, date }: Pr
     // අද දවස නම් පමණක් සෑම තත්පර 3කට වරක් auto-refresh කරන්න
     const isToday = !date || date === new Date().toISOString().split("T")[0];
     if (isToday) {
-      interval = setInterval(fetchData, 3000);
+      interval = setInterval(fetchData, 10000);
     }
 
     return () => {

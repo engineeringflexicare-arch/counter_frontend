@@ -31,12 +31,16 @@ export default function LoginPage() {
     }
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/users/login`, {
-        EmployeeNumber: employeeNumber,
-        password: password,
-      }, { withCredentials: true });
+      const response = await axios.post(
+        `${API_BASE_URL}/api/users/login`,
+        {
+          EmployeeNumber: employeeNumber,
+          password: password,
+        },
+        { withCredentials: true },
+      );
 
-      const { token, role, user } = response.data;
+      const { role, user } = response.data;
 
       // ✅ Role එක backend එකෙන් කොහොම ආවත් (Admin, ADMIN, admin)
       // ඒක simple letters වලට හරවා ගන්නවා (toLowerCase)

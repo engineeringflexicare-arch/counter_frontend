@@ -155,7 +155,7 @@ export default function AnalyticsPage() {
   // Auto-refresh only for "today" (live-ish), every 30s
   useEffect(() => {
     if (!isToday) return;
-    const interval = setInterval(() => fetchAnalytics(selectedDate, true), 30000);
+    const interval = setInterval(() => fetchAnalytics(selectedDate, true), 60000);
     return () => clearInterval(interval);
   }, [isToday, selectedDate, fetchAnalytics]);
 
