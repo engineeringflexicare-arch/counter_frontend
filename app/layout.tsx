@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import PWAInstallPrompt from "../components/PWAInstallPrompt";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,11 +12,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// 1. Core Metadata Linking to Manifest Routing Path
 export const metadata: Metadata = {
   title: "Flexi Dashboard",
   description: "Production Monitoring System",
-  manifest: "/manifest", // Points automatically to app/manifest.ts
+  manifest: "/manifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -25,7 +23,6 @@ export const metadata: Metadata = {
   },
 };
 
-// 2. Separate Viewport Configuration (Required in modern Next.js versions)
 export const viewport: Viewport = {
   themeColor: "#2563eb",
   width: "device-width",
@@ -37,10 +34,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-      <body>
-        {children}
-        <PWAInstallPrompt />
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
