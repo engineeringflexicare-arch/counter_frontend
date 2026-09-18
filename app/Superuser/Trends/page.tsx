@@ -37,6 +37,9 @@ interface LineBase {
   targetCount?: number;
   shiftStartTime?: string;
   shiftEndTime?: string;
+  injectionMachineNumber?: string;
+  cavities?: number;
+  unitType?: "line" | "machine";
 }
 
 interface DayEntry {
@@ -52,7 +55,9 @@ interface LinePeriodStats {
   floor?: string;
   currentOutput: number;
   previousOutput: number;
-  growthPct: number | null; // null when there's no previous-period data to compare against
+  growthPct: number | null;
+  unitType: "line" | "machine";
+  displayName: string;
 }
 
 type ViewMode = "weekly" | "monthly";
@@ -186,8 +191,30 @@ export default function TrendsPage() {
       setError("");
 
       try {
-        const linesRes = await api.get(`/api/lines`);
-        const baseLines: LineBase[] = (linesRes.data?.data || []).filter((l: LineBase) => Boolean(l.machineId));
+        const [linesRes, machinesRes] = await Promise.all([
+          api.get(`/api/lines`),
+          api.get(`/api/injection-machines/`),
+        ]);
+
+        const assemblyLines: LineBase[] = (linesRes.data?.data || []).filter((l: LineBase) => Boolean(l.machineId));
+        const rawMachines = machinesRes.data?.data;
+        const manufacturingMachines: LineBase[] = (Array.isArray(rawMachines)
+          ? rawMachines
+          : rawMachines
+            ? Object.values(rawMachines)
+            : [])
+          .filter((m) => Boolean(m?.machineId && m?.injectionMachineNumber))
+          .map((m) => ({
+            ...m,
+            lineId: `M/C ${m.injectionMachineNumber}`,
+            floor: m.floor || "Manufacturing Floor",
+            unitType: "machine" as const,
+          }));
+
+        const baseLines: LineBase[] = [
+          ...assemblyLines.map((l) => ({ ...l, unitType: "line" as const })),
+          ...manufacturingMachines,
+        ];
 
         const currentDates = getDatesInRange(periodStart, periodEnd > today ? today : periodEnd);
         const prevDates = getDatesInRange(prevStart, prevEnd);
@@ -210,10 +237,16 @@ export default function TrendsPage() {
                   try {
                     const shiftStart = line.shiftStartTime || defaultShiftStart;
                     const shiftEnd = line.shiftEndTime || defaultShiftEnd;
-                    const res = await api.get(
-                      `/api/esp32/hourly-table/${line.machineId}?date=${dateStr}&shiftStartTime=${encodeURIComponent(shiftStart)}&shiftEndTime=${encodeURIComponent(shiftEnd)}`,
-                    );
-                    return { lineId: line.lineId, output: res.data?.totalOutput || 0 };
+                    const endpoint =
+                      line.unitType === "machine"
+                        ? `/api/esp32/hourly-production/${line.machineId}?date=${dateStr}&shiftStartTime=${encodeURIComponent(shiftStart)}&shiftEndTime=${encodeURIComponent(shiftEnd)}`
+                        : `/api/esp32/hourly-table/${line.machineId}?date=${dateStr}&shiftStartTime=${encodeURIComponent(shiftStart)}&shiftEndTime=${encodeURIComponent(shiftEnd)}`;
+                    const res = await api.get(endpoint);
+                    const multiplier = line.unitType === "machine" ? line.cavities || 1 : 1;
+                    return {
+                      lineId: line.lineId,
+                      output: (Number(res.data?.totalOutput) || 0) * multiplier,
+                    };
                   } catch {
                     return { lineId: line.lineId, output: 0 };
                   }
@@ -264,6 +297,8 @@ export default function TrendsPage() {
             currentOutput: curr,
             previousOutput: prev,
             growthPct: growth,
+            unitType: line.unitType || "line",
+            displayName: line.unitType === "machine" ? `M/C ${line.injectionMachineNumber || line.lineId.replace(/^M\/C\s*/, "")}` : line.lineId,
           };
         });
         stats.sort((a, b) => b.currentOutput - a.currentOutput);
@@ -537,16 +572,17 @@ export default function TrendsPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-6">
             <Factory className="h-5 w-5 text-slate-500" />
-            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Line Performance · This {viewMode === "weekly" ? "Week" : "Month"} vs Previous</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Production Unit Performance · This {viewMode === "weekly" ? "Week" : "Month"} vs Previous</h2>
           </div>
           {lineStats.length === 0 ? (
-            <div className="flex h-32 items-center justify-center text-sm text-slate-400">No lines with assigned machines</div>
+            <div className="flex h-32 items-center justify-center text-sm text-slate-400">No production units with assigned machines</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-slate-500 border-b border-slate-100">
-                    <th className="py-2 pr-4 font-semibold">Line</th>
+                    <th className="py-2 pr-4 font-semibold">Unit</th>
+                    <th className="py-2 pr-4 font-semibold">Type</th>
                     <th className="py-2 pr-4 font-semibold">Product</th>
                     <th className="py-2 pr-4 font-semibold">This {viewMode === "weekly" ? "Week" : "Month"}</th>
                     <th className="py-2 pr-4 font-semibold">Previous</th>
@@ -556,7 +592,8 @@ export default function TrendsPage() {
                 <tbody>
                   {lineStats.map((s) => (
                     <tr key={s.lineId} className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
-                      <td className="py-2.5 pr-4 font-medium text-slate-700">{s.lineId.replaceAll("_", " ")}</td>
+                      <td className="py-2.5 pr-4 font-medium text-slate-700">{s.displayName.replaceAll("_", " ")}</td>
+                      <td className="py-2.5 pr-4 text-slate-600">{s.unitType === "machine" ? "Manufacturing" : "Assembly"}</td>
                       <td className="py-2.5 pr-4 text-slate-600">{s.productCode || "—"}</td>
                       <td className="py-2.5 pr-4 font-semibold text-slate-800">{s.currentOutput.toLocaleString()}</td>
                       <td className="py-2.5 pr-4 text-slate-500">{s.previousOutput.toLocaleString()}</td>

@@ -18,6 +18,10 @@ interface LineBase {
   targetCount?: number;
   shiftStartTime?: string;
   shiftEndTime?: string;
+  injectionMachineNumber?: string;
+  cavities?: number;
+  shift?: string;
+  unitType?: "line" | "machine";
 }
 
 interface RunData {
@@ -35,6 +39,8 @@ interface LineAnalytics extends LineBase {
   firstTime: string | null;
   hourlyData: { hour: string; output: number }[];
   runs: RunData[];
+  unitType: "line" | "machine";
+  displayName: string;
 }
 
 interface ProductGroup {
@@ -87,57 +93,105 @@ export default function AnalyticsPage() {
     setError("");
 
     try {
-      const linesRes = await api.get(`/api/lines`);
+      const [linesRes, machinesRes] = await Promise.all([
+        api.get(`/api/lines`),
+        api.get(`/api/injection-machines/`),
+      ]);
+
       const baseLines: LineBase[] = linesRes.data?.data || [];
+      const rawMachines = machinesRes.data?.data;
+      const machineConfigs: LineBase[] = (Array.isArray(rawMachines)
+        ? rawMachines
+        : rawMachines
+          ? Object.values(rawMachines)
+          : [])
+        .filter((machine) => Boolean(machine?.injectionMachineNumber))
+        .map((machine) => ({
+          ...machine,
+          lineId: `M/C ${machine.injectionMachineNumber}`,
+          unitType: "machine" as const,
+          floor: machine.floor || "Manufacturing Floor",
+        }));
+
+      const units = [
+        ...baseLines.map((line) => ({ ...line, unitType: "line" as const })),
+        ...machineConfigs,
+      ];
 
       const results = await Promise.all(
-        baseLines.map(async (line) => {
-          const target = line.dailyTarget || line.targetCount || 0;
+        units.map(async (unit) => {
+          const target = unit.dailyTarget || unit.targetCount || 0;
+          const unitType = unit.unitType || "line";
+          const displayName =
+            unitType === "machine"
+              ? `M/C ${unit.injectionMachineNumber || unit.lineId.replace(/^M\/C\s*/, "")}`
+              : unit.lineId;
 
-          if (!line.machineId) {
+          if (!unit.machineId) {
             return {
-              ...line,
+              ...unit,
               target,
               totalOutput: 0,
               completion: 0,
               firstTime: null,
               hourlyData: [],
               runs: [],
+              unitType,
+              displayName,
             } as LineAnalytics;
           }
 
           try {
-            const start = line.shiftStartTime || "08:30";
-            const end = line.shiftEndTime || "20:30";
-            const res = await api.get(`/api/esp32/hourly-table/${line.machineId}?date=${date}&shiftStartTime=${encodeURIComponent(start)}&shiftEndTime=${encodeURIComponent(end)}`);
+            const start = unit.shiftStartTime || "08:30";
+            const end = unit.shiftEndTime || "20:30";
+            const endpoint =
+              unitType === "machine"
+                ? `/api/esp32/hourly-production/${unit.machineId}?date=${date}&shiftStartTime=${encodeURIComponent(start)}&shiftEndTime=${encodeURIComponent(end)}`
+                : `/api/esp32/hourly-table/${unit.machineId}?date=${date}&shiftStartTime=${encodeURIComponent(start)}&shiftEndTime=${encodeURIComponent(end)}`;
 
-            const totalOutput = res.data?.totalOutput || 0;
+            const res = await api.get(endpoint);
+            const multiplier = unitType === "machine" ? unit.cavities || 1 : 1;
+            const totalOutput = (Number(res.data?.totalOutput) || 0) * multiplier;
+            const hourlyData = (Array.isArray(res.data?.hourlyData) ? res.data.hourlyData : []).map(
+              (item: { hour: string; output: number }) => ({
+                hour: item.hour,
+                output: (Number(item.output) || 0) * multiplier,
+              }),
+            );
 
             return {
-              ...line,
+              ...unit,
               target,
               totalOutput,
               completion: target > 0 ? (totalOutput / target) * 100 : 0,
               firstTime: res.data?.firstTime || null,
-              hourlyData: res.data?.hourlyData || [],
-              runs: res.data?.runs || [],
+              hourlyData,
+              runs: Array.isArray(res.data?.runs) ? res.data.runs : [],
+              unitType,
+              displayName,
             } as LineAnalytics;
           } catch {
             return {
-              ...line,
+              ...unit,
               target,
               totalOutput: 0,
               completion: 0,
               firstTime: null,
               hourlyData: [],
               runs: [],
+              unitType,
+              displayName,
             } as LineAnalytics;
           }
         }),
       );
 
       setLines(results);
-      setSelectedLineId((prev) => (prev && results.some((r) => r.lineId === prev) ? prev : results[0]?.lineId || ""));
+      setSelectedLineId((prev) =>
+        prev && results.some((r) => r.lineId === prev)
+          ? prev
+          : results[0]?.lineId || "",
+      );
     } catch (err) {
       console.error("Analytics fetch error:", err);
       setError("Failed to load analytics data");
@@ -205,7 +259,7 @@ export default function AnalyticsPage() {
         .filter((l) => l.target > 0)
         .sort((a, b) => b.completion - a.completion)
         .map((l) => ({
-          name: l.lineId.replaceAll("_", " "),
+          name: l.displayName.replaceAll("_", " "),
           completion: Number(l.completion.toFixed(1)),
           output: l.totalOutput,
           target: l.target,
@@ -362,7 +416,7 @@ export default function AnalyticsPage() {
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Top Performer</p>
-                    <p className="text-sm font-bold text-slate-800">{bestLine.lineId.replaceAll("_", " ")}</p>
+                    <p className="text-sm font-bold text-slate-800">{bestLine.displayName.replaceAll("_", " ")}</p>
                     <p className="text-xs text-slate-500">{bestLine.productCode || "No product"}</p>
                   </div>
                 </div>
@@ -377,7 +431,7 @@ export default function AnalyticsPage() {
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-red-700 uppercase tracking-wide">Needs Attention</p>
-                    <p className="text-sm font-bold text-slate-800">{worstLine.lineId.replaceAll("_", " ")}</p>
+                    <p className="text-sm font-bold text-slate-800">{worstLine.displayName.replaceAll("_", " ")}</p>
                     <p className="text-xs text-slate-500">{worstLine.productCode || "No product"}</p>
                   </div>
                 </div>
@@ -470,7 +524,7 @@ export default function AnalyticsPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center gap-2 mb-6">
               <BarChart3 className="h-5 w-5 text-blue-600" />
-              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Completion % by Line</h2>
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Completion % by Production Unit</h2>
             </div>
             <div className="h-80 w-full">
               {barData.length === 0 ? (
@@ -545,7 +599,7 @@ export default function AnalyticsPage() {
             >
               {lines.map((l) => (
                 <option key={l.lineId} value={l.lineId}>
-                  {l.lineId.replaceAll("_", " ")} {l.productCode ? `· ${l.productCode}` : ""}
+                  {l.displayName.replaceAll("_", " ")} · {l.unitType === "machine" ? "Manufacturing" : "Assembly"} {l.productCode ? `· ${l.productCode}` : ""}
                 </option>
               ))}
             </select>
@@ -595,13 +649,14 @@ export default function AnalyticsPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm mt-8">
           <div className="flex items-center gap-2 mb-6">
             <Factory className="h-5 w-5 text-slate-500" />
-            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">All Lines · {selectedDate}</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">All Production Units · {selectedDate}</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-slate-500 border-b border-slate-100">
-                  <th className="py-2 pr-4 font-semibold">Line</th>
+                  <th className="py-2 pr-4 font-semibold">Unit</th>
+                  <th className="py-2 pr-4 font-semibold">Type</th>
                   <th className="py-2 pr-4 font-semibold">Product Code</th>
                   <th className="py-2 pr-4 font-semibold">Floor</th>
                   <th className="py-2 pr-4 font-semibold">Output</th>
@@ -615,7 +670,8 @@ export default function AnalyticsPage() {
                   const colors = completionColor(l.completion);
                   return (
                     <tr key={l.lineId} className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
-                      <td className="py-2.5 pr-4 font-medium text-slate-700">{l.lineId.replaceAll("_", " ")}</td>
+                      <td className="py-2.5 pr-4 font-medium text-slate-700">{l.displayName.replaceAll("_", " ")}</td>
+                      <td className="py-2.5 pr-4 text-slate-600">{l.unitType === "machine" ? "Manufacturing" : "Assembly"}</td>
                       <td className="py-2.5 pr-4 text-slate-600">{l.productCode || "—"}</td>
                       <td className="py-2.5 pr-4 text-slate-600">{l.floor?.replaceAll("_", " ") || "—"}</td>
                       <td className="py-2.5 pr-4 font-semibold text-slate-800">{l.totalOutput.toLocaleString()}</td>
