@@ -1,15 +1,27 @@
-import { NextRequest, NextResponse } from "next/server";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
 
+interface UserPayload {
+  role?: string;
+}
 
-export function proxy(request: NextRequest) {
+export function proxy(
+  request: NextRequest
+) {
+  const { pathname } =
+    request.nextUrl;
 
-  const { pathname } = request.nextUrl;
+  const token =
+    request.cookies.get("token")?.value;
 
+  const userCookie =
+    request.cookies.get("user")?.value;
 
-  const token = request.cookies.get("token")?.value;
-  const userCookie = request.cookies.get("user")?.value;
-
-
+  // ==========================================
+  // PUBLIC ROUTES
+  // ==========================================
   const publicRoutes = [
     "/login",
     "/register",
@@ -17,108 +29,115 @@ export function proxy(request: NextRequest) {
     "/reset-password",
   ];
 
-
-  const isPublicRoute = publicRoutes.some((route) =>
-    pathname.startsWith(route)
-  );
-
+  const isPublicRoute =
+    publicRoutes.some((route) =>
+      pathname.startsWith(route)
+    );
 
   if (isPublicRoute) {
     return NextResponse.next();
   }
 
-
+  // ==========================================
+  // AUTH CHECK
+  // ==========================================
   if (!token) {
     return NextResponse.redirect(
       new URL("/login", request.url)
     );
   }
 
-
-  interface UserPayload {
-    role?: string;
-  }
-
-  let user: UserPayload | null = null;
+  // ==========================================
+  // USER COOKIE
+  // ==========================================
+  let user: UserPayload | null =
+    null;
 
   try {
     if (userCookie) {
-      user = JSON.parse(decodeURIComponent(userCookie)) as UserPayload;
+      user = JSON.parse(
+        decodeURIComponent(userCookie)
+      ) as UserPayload;
     }
   } catch {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(
+      new URL("/login", request.url)
+    );
   }
 
+  const role =
+    user?.role?.toLowerCase();
 
-
-  // Assembly Supervisor
-  if(pathname.startsWith("/AssemblySupervisor")){
-
-    if(user?.role !== "assembly_supervisor"){
-
+  // ==========================================
+  // ASSEMBLY SUPERVISOR
+  // ==========================================
+  if (
+    pathname.startsWith(
+      "/AssemblySupervisor"
+    )
+  ) {
+    if (
+      role !==
+      "assembly_supervisor"
+    ) {
       return NextResponse.redirect(
         new URL("/login", request.url)
       );
-
     }
-
   }
 
-
-
-  // Production Supervisor
-  if(pathname.startsWith("/ProductionSupervisor")){
-
-    if(user?.role !== "production_supervisor"){
-
+  // ==========================================
+  // PRODUCTION SUPERVISOR
+  // ==========================================
+  if (
+    pathname.startsWith(
+      "/ProductionSupervisor"
+    )
+  ) {
+    if (
+      role !==
+      "production_supervisor"
+    ) {
       return NextResponse.redirect(
         new URL("/login", request.url)
       );
-
     }
-
   }
 
-
-
-  // Admin
-  if(pathname.startsWith("/Admin")){
-
-    if(user?.role !== "admin"){
-
+  // ==========================================
+  // ADMIN
+  // ==========================================
+  if (
+    pathname.startsWith("/Admin")
+  ) {
+    if (role !== "admin") {
       return NextResponse.redirect(
         new URL("/login", request.url)
       );
-
     }
-
   }
 
-
-
-  // Superuser
-  if(pathname.startsWith("/Superuser")){
-
-    if(user?.role !== "superuser"){
-
+  // ==========================================
+  // SUPERUSER
+  // ==========================================
+  if (
+    pathname.startsWith("/Superuser")
+  ) {
+    if (role !== "superuser") {
       return NextResponse.redirect(
         new URL("/login", request.url)
       );
-
     }
-
   }
 
-
-
+  // ==========================================
+  // AUTHORIZED
+  // ==========================================
   return NextResponse.next();
-
 }
-
-
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|sw\.js|manifest\.webmanifest|manifest|icon-192\.png|icon-512\.png|logo\.png|logo\.svg|default\.png|Background\.png|offline\.html|window\.svg|globe\.svg|file\.svg|vercel\.svg|icons8-user-default-96\.png).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.webmanifest|manifest|icon-192\\.png|icon-512\\.png|logo\\.png|logo\\.svg|default\\.png|Background\\.png|offline\\.html|window\\.svg|globe\\.svg|file\\.svg|vercel\\.svg|icons8-user-default-96\\.png).*)",
   ],
 };
